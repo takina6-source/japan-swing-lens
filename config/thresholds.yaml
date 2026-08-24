@@ -1,0 +1,47 @@
+logic_version: "2026.08-v3-free"
+free_data:
+  yahoo_batch_size: 80
+  initial_history_period: "2y"
+  incremental_period: "10d"
+  minimum_history_rows: 260
+  stale_after_days: 5
+trade_plan:
+  entry_zone_above_pivot_pct: 2
+  do_not_chase_above_pivot_pct: 5
+  maximum_stop_loss_pct: 7
+  first_target_r_multiple: 1
+  main_target_r_multiple: 2
+  extended_profit_pct: 20
+liquidity:
+  minimum_trading_value_yen: 100000000
+momentum:
+  strong_percentile: 80
+  borderline_percentile: 65
+minervini:
+  high_52w_within_pct: 25
+  low_52w_above_pct: 30
+  rs_percentile: 70
+  vcp_max_last_contraction_pct: 12
+  pivot_watch_pct: 3
+qullamaggie:
+  momentum_3m_min_pct: 30
+  momentum_6m_min_pct: 50
+  consolidation_min_days: 10
+  consolidation_max_days: 60
+  pivot_watch_pct: 3
+  breakout_volume_ratio: 1.5
+oneil:
+  eps_growth_pct: 25
+  sales_growth_pct: 20
+  rs_percentile: 80
+weinstein:
+  ma_days: 150
+  slope_lookback_days: 20
+darvas:
+  box_days: 20
+  box_max_width_pct: 15
+  pivot_watch_pct: 3
+connors:
+  rsi2_oversold: 10
+  rsi2_borderline: 20
+  exit_rsi2: 70
