@@ -92,9 +92,18 @@ def parse_edinet_csv(content: bytes, code: str, filing_date: str) -> dict | None
     roe, _ = pair([r"RateOfReturnOnEquity", r"自己資本利益率"])
     bps, _ = pair([r"NetAssetsPerShare", r"1株当たり純資産"])
     if sales is None and eps is None: return None
+    fiscal_year = int(filing_date[:4]) if filing_date and filing_date[:4].isdigit() else date.today().year
+    annual_eps = []
+    if prior_eps is not None:
+        annual_eps.append({"fiscal_year": str(fiscal_year - 1), "eps": prior_eps,
+                           "filing_date": filing_date, "source": "金融庁 EDINET API v2"})
+    if eps is not None:
+        annual_eps.append({"fiscal_year": str(fiscal_year), "eps": eps,
+                           "filing_date": filing_date, "source": "金融庁 EDINET API v2"})
     return {"code": code, "filing_date": filing_date,
             "eps_growth": _growth(prior_eps, eps), "sales_growth": _growth(prior_sales, sales),
             "roe": roe, "bps": bps, "source": "金融庁 EDINET API v2",
+            "annual_eps": annual_eps,
             "freshness_note": "有価証券報告書等。決算短信より遅い場合があります"}
 
 

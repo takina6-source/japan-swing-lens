@@ -68,6 +68,16 @@ class StrategyResult:
     pivot: float | None = None
     stop: float | None = None
     summary: str = ""
+    pivot_type: str = "N/A"
+    pivot_basis: str = "N/A"
+    pivot_fidelity: Fidelity = Fidelity.PROXY
+    pivot_formed_date: str | None = None
+    setup_start_date: str | None = None
+    setup_id: str | None = None
+    setup_age: int | None = None
+    distance_to_pivot_pct: float | None = None
+    breakout_date: str | None = None
+    breakout_age: int | None = None
 
     @property
     def counts(self) -> dict[str, int]:
@@ -86,6 +96,20 @@ class StrategyResult:
         c = self.counts
         return f"{c['○']}○/{c['△']}△/{c['×']}×/{c['N/A']}N/A"
 
+    @property
+    def coverage(self) -> float:
+        return (sum(c.verdict != Verdict.NA for c in self.conditions) /
+                len(self.conditions) * 100) if self.conditions else 0.0
+
+    @property
+    def confidence(self) -> str:
+        evaluated = [c for c in self.conditions if c.verdict != Verdict.NA]
+        if not evaluated or self.coverage < 45:
+            return "LOW"
+        weight = {Fidelity.STRICT: 1.0, Fidelity.PRACTICAL: .8, Fidelity.PROXY: .5}
+        quality = sum(weight[c.fidelity] for c in evaluated) / len(evaluated) * self.coverage
+        return "HIGH" if quality >= 72 else "MEDIUM" if quality >= 52 else "LOW"
+
 
 @dataclass
 class StockAnalysis:
@@ -97,6 +121,12 @@ class StockAnalysis:
     strategies: dict[str, StrategyResult]
     state: SetupState
     confluence: int
+    breakout_strategy_count: int = 0
+    aligned_strategy_count: int = 0
+    coverage: float = 0.0
+    confidence: str = "LOW"
+    pivot_fidelity: Fidelity = Fidelity.PROXY
+    setup_id: str | None = None
     trade_plan: "TradePlan | None" = None
     rank_key: tuple = field(default_factory=tuple)
 

@@ -1,10 +1,15 @@
-logic_version: "2026.08-v3-free"
+logic_version: "2026.08-v4-observer"
+strategy_version: "pivot-consensus-v1"
+threshold_version: "2026.08-v4"
+schema_version: "2.0"
+export_schema_version: "2.0"
 free_data:
   yahoo_batch_size: 80
   initial_history_period: "2y"
   incremental_period: "10d"
   minimum_history_rows: 260
   stale_after_days: 5
+  annual_eps_updates_per_run: 30
 trade_plan:
   entry_zone_above_pivot_pct: 2
   do_not_chase_above_pivot_pct: 5
@@ -30,13 +35,24 @@ qullamaggie:
   consolidation_max_days: 60
   pivot_watch_pct: 3
   breakout_volume_ratio: 1.5
+  prior_move_min_pct: 30
+  base_max_width_pct: 24
 oneil:
   eps_growth_pct: 25
   sales_growth_pct: 20
   rs_percentile: 80
+  flat_base_days: 30
+  flat_base_max_width_pct: 15
+  annual_earnings:
+    minimum_years: 3
+    cagr_min_pct: 25
+    minimum_each_year_growth_pct: 25
+    max_single_year_growth_pct: 400
 weinstein:
   ma_days: 150
   slope_lookback_days: 20
+  stage1_base_days: 60
+  stage1_max_width_pct: 25
 darvas:
   box_days: 20
   box_max_width_pct: 15
@@ -45,3 +61,16 @@ connors:
   rsi2_oversold: 10
   rsi2_borderline: 20
   exit_rsi2: 70
+pivot:
+  recent_breakout_days: 5
+  extended_above_pivot_pct: 8
+  failed_below_pivot_pct: 3
+  setup_max_age_days: 90
+consensus:
+  breakout_min_strategies: 2
+  watch_min_strategies: 2
+  watch_min_confluence: 2
+  strong_breakout_min_strategies: 3
+tracking:
+  horizons: [1, 5, 10, 20]
+  max_sessions: 20

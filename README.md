@@ -16,6 +16,11 @@ J-Quantsの有料契約なしで運用できる構成を標準にしています
 - 手法別判定と全条件の内訳
 - 直近180日のチャート
 - ホーム画面追加対応
+- Strategy固有Structure PivotとPivot Fidelity
+- 5手法Breakout Consensus（Connorsは別枠）
+- Coverage / Confidence
+- Signal Snapshot・1/5/10/20営業日後の自動追跡
+- ChatGPTレビュー用CSV / JSON
 
 `.github/workflows/update-dashboard.yml` は平日19:00（日本時間）に分析を実行し、
 成功した場合だけGitHub Pagesを更新します。失敗した日は前回公開版がそのまま残ります。
@@ -36,6 +41,16 @@ EDINETを使う場合だけ、GitHubの **Settings → Secrets and variables →
 ```bash
 .venv/bin/python scripts/export_web.py
 ```
+
+### ChatGPTへ検証を依頼する
+
+最初に次のURLを提示してください。
+
+`https://takina6-source.github.io/japan-swing-lens/validation/index.json`
+
+ChatGPTは件数と期間を確認後、目的に応じて `signals.csv`、`signal_history.csv`、
+`performance.csv` を参照できます。画面下部の「検証データ」からもダウンロードできます。
+詳細なschemaと判定仕様は [`docs/VALIDATION.md`](docs/VALIDATION.md) を参照してください。
 
 ## 起動方法
 

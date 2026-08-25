@@ -6,6 +6,7 @@ from .demo import NAMES, demo_fundamentals, make_demo_history
 from .yahoo import YahooProvider
 from .jpx import JPXUniverseProvider, select_scope
 from ..database import Database
+from ..config import load_config
 
 log = logging.getLogger(__name__)
 
@@ -84,8 +85,24 @@ class DataService:
             except Exception as exc:
                 errors.append(f"EDINET: 財務更新を継続できませんでした（{exc}）")
                 self.db.log_fetch("金融庁 EDINET API v2", "直近提出書類", False, str(exc))
+        annual_cache = self.db.load_annual_eps(list(frames))
+        missing_annual = [code for code in frames if len(annual_cache.get(code, [])) < 3]
+        if missing_annual:
+            limit = int(load_config()["free_data"]["annual_eps_updates_per_run"])
+            # 強い銘柄から順に補完し、毎回少数ずつ自動でCoverageを広げる。
+            missing_annual.sort(key=lambda code: _momentum(frames[code]), reverse=True)
+            for code in missing_annual[:limit]:
+                try:
+                    rows = yahoo.annual_eps(code)
+                    if rows:
+                        self.db.save_annual_eps(code, rows, yahoo.name)
+                except Exception as exc:
+                    errors.append(f"{code}: 年次EPS {exc}")
+            annual_cache = self.db.load_annual_eps(list(frames))
         fundamentals = {c: {"eps_growth": fund_cache.get(c, {}).get("eps_growth"),
                             "sales_growth": fund_cache.get(c, {}).get("sales_growth"),
+                            "annual_eps": annual_cache.get(c, []),
+                            "annual_eps_source": (annual_cache.get(c) or [{}])[-1].get("source", "N/A"),
                             "fundamental_source": fund_cache.get(c, {}).get("source", "N/A"),
                             "fundamental_date": fund_cache.get(c, {}).get("filing_date")}
                         for c in frames}
@@ -130,3 +147,9 @@ class DataService:
         except Exception as exc:
             log.warning("TOPIX fallback: %s", exc)
             return make_demo_history("TOPIX")
+
+
+def _momentum(frame: pd.DataFrame) -> float:
+    if len(frame) < 64:
+        return -1e9
+    return float(frame.close.iloc[-1] / frame.close.iloc[-64] - 1)

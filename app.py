@@ -79,8 +79,10 @@ def run_scan(mode: str, scope: str, edinet_marker: str, logic_version: str):
     prepared = prepare_universe(raw, benchmark)
     analyses = []
     for code, df in prepared.items():
-        item = analyze(code, universe[code], df, fundamentals[code], sources[code], benchmark, CFG)
+        item = analyze(code, universe[code], df, fundamentals[code], sources[code], benchmark, CFG,
+                       DB.load_setup_registry(code))
         DB.save_analysis(item, CFG["logic_version"])
+        DB.save_signal_tracking(item, df, benchmark, CFG)
         analyses.append(item)
     return rank(analyses), prepared, errors, data_status
 
@@ -98,7 +100,7 @@ def jquants_free_check(code: str, key_marker: str):
 
 
 st.markdown("""<div class="hero"><h1>日本株 Swing Lens</h1>
-<p>6つの著名手法を、○ / △ / × / N/Aと実数値で比較する説明可能なランキング</p></div>""", unsafe_allow_html=True)
+<p>5つの順張りStrategy ConsensusとConnors押し目を分離し、Pivot根拠と検証履歴を残すランキング</p></div>""", unsafe_allow_html=True)
 
 with st.sidebar:
     st.header("データと表示")
@@ -159,7 +161,7 @@ col4.metric("ブレイク直前", sum(a.state == SetupState.BREAKOUT_WATCH for a
 st.subheader("今日のランキング")
 f1, f2, f3 = st.columns([1.4, 1.2, 1])
 view_filter = f1.selectbox("候補", ["全候補", "新規シグナル", "ブレイク直前", "セットアップ形成中", "複数手法一致", "Momentum上位"])
-min_conf = f2.slider("Confluence（最低）", 0, 6, 0)
+min_conf = f2.slider("Confluence（最低）", 0, 5, 0)
 liquid_only = f3.checkbox("流動性基準を満たす")
 
 filtered = analyses
@@ -173,7 +175,9 @@ filtered = [a for a in filtered if a.confluence >= min_conf and (not liquid_only
 rows = []
 for a in filtered:
     rows.append({"銘柄": f"{a.code} {a.name}", "状態": a.state.value,
-                 "一致": f"{a.confluence}/6", "Mom順位": _fmt(a.metrics.get("momentum_percentile"), 0),
+                 "突破": f"{a.breakout_strategy_count}/5", "一致": f"{a.confluence}/5",
+                 "Coverage": f"{a.coverage:.0f}%", "Confidence": a.confidence,
+                 "Mom順位": _fmt(a.metrics.get("momentum_percentile"), 0),
                  "Minervini": state_label(a.strategies["Minervini"].state),
                  "Qulla": state_label(a.strategies["Qullamaggie"].state),
                  "CAN": state_label(a.strategies["CAN SLIM"].state),
@@ -193,14 +197,15 @@ df = frames[a.code]
 st.divider()
 st.subheader(f"{a.code} {a.name}")
 st.markdown(f'<span class="status">{a.state.value}</span>　データ: {a.source}　基準日: {a.as_of}', unsafe_allow_html=True)
-s1, s2, s3, s4, s5 = st.columns(5)
+s1, s2, s3, s4, s5, s6 = st.columns(6)
 s1.metric("現在値", f"¥{a.metrics['price']:,.0f}")
-s2.metric("Confluence", f"{a.confluence}/6")
-s3.metric("Momentum順位", f"{_fmt(a.metrics.get('momentum_percentile'),0)} percentile")
-s4.metric("TOPIX対比 6か月", f"{_fmt(a.metrics.get('benchmark_rs_6m'),1)}%")
+s2.metric("Breakout Consensus", f"{a.breakout_strategy_count}/5")
+s3.metric("Confluence", f"{a.confluence}/5")
+s4.metric("Coverage / Confidence", f"{a.coverage:.0f}% / {a.confidence}")
 pivots = [r.pivot for r in a.strategies.values() if r.pivot]
 main_pivot = min(pivots, key=lambda p: abs(p-a.metrics["price"])) if pivots else None
-s5.metric("最寄りPivot", f"¥{main_pivot:,.0f}" if main_pivot else "N/A")
+s5.metric("Momentum順位", f"{_fmt(a.metrics.get('momentum_percentile'),0)} percentile")
+s6.metric("最寄りPivot", f"¥{main_pivot:,.0f}" if main_pivot else "N/A")
 if secret_key("JQUANTS_API_KEY") and mode == "無料実用":
     try:
         official = jquants_free_check(a.code, "configured")
@@ -260,7 +265,10 @@ for name, result in a.strategies.items():
                           "条件": c.label, "実際値": value, "基準": ref,
                           "忠実度": c.fidelity.value, "注記": c.note})
         st.dataframe(pd.DataFrame(table), hide_index=True, width="stretch")
-        if result.pivot: st.caption(f"Pivot ¥{result.pivot:,.0f}　Stop候補 ¥{result.stop:,.0f}" if result.stop else f"Pivot ¥{result.pivot:,.0f}")
+        if result.pivot:
+            st.caption(f"Pivot ¥{result.pivot:,.0f}｜{result.pivot_type}｜{result.pivot_basis}｜"
+                       f"{result.pivot_fidelity.value}｜形成 {result.pivot_formed_date or 'N/A'}｜"
+                       f"距離 {_fmt(result.distance_to_pivot_pct,1)}%")
 
 with st.expander("データ出所・判定上の注意"):
     st.markdown("""

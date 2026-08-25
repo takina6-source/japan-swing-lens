@@ -21,6 +21,7 @@ from engine.data.service import DataService
 from engine.data.yahoo import YahooProvider
 from engine.database import Database
 from engine.models import SetupState
+from engine.validation import export_validation, seed_validation
 
 OUT = ROOT / "public" / "dashboard" / "data"
 
@@ -53,11 +54,14 @@ def cached_scan(db: Database, scope: str):
     frames = db.load_prices_many(list(names), yahoo.name)
     frames = {code: frame for code, frame in frames.items() if len(frame) >= 200}
     funds = db.load_fundamentals(list(frames))
+    annual = db.load_annual_eps(list(frames))
     fundamentals = {code: {
         "eps_growth": funds.get(code, {}).get("eps_growth"),
         "sales_growth": funds.get(code, {}).get("sales_growth"),
         "fundamental_source": funds.get(code, {}).get("source", "N/A"),
         "fundamental_date": funds.get(code, {}).get("filing_date"),
+        "annual_eps": annual.get(code, []),
+        "annual_eps_source": (annual.get(code) or [{}])[-1].get("source", "N/A"),
     } for code in frames}
     sources = {code: yahoo.name for code in frames}
     return names, frames, fundamentals, sources, meta
@@ -90,6 +94,7 @@ def chart_rows(frame: pd.DataFrame) -> list[dict]:
 def export(refresh: bool, scope: str):
     cfg = load_config()
     db = Database(ROOT / "data" / "momentum.db")
+    seed_validation(db, os.getenv("VALIDATION_SEED_URL"))
     service = DataService(db)
     meta = {row["code"]: row for row in db.load_securities()}
     if refresh:
@@ -109,24 +114,38 @@ def export(refresh: bool, scope: str):
         benchmark_source = "代替benchmark"
     prepared = prepare_universe(raw, benchmark)
     analyses = rank([
-        analyze(code, names[code], frame, fundamentals[code], sources[code], benchmark, cfg)
+        analyze(code, names[code], frame, fundamentals[code], sources[code], benchmark, cfg,
+                db.load_setup_registry(code))
         for code, frame in prepared.items()
     ])
+    for item in analyses:
+        db.save_analysis(item, cfg["logic_version"])
+        db.save_signal_tracking(item, prepared[item.code], benchmark, cfg)
     OUT.mkdir(parents=True, exist_ok=True)
     detail_dir = OUT / "details"
     detail_dir.mkdir(exist_ok=True)
     candidates = []
     for item in analyses:
         row_meta = meta.get(item.code, {})
-        pivots = [result.pivot for result in item.strategies.values() if result.pivot]
-        pivot = min(pivots, key=lambda value: abs(value - item.metrics["price"])) if pivots else None
+        pivot_results = [result for name, result in item.strategies.items()
+                         if name != "Connors" and result.pivot]
+        primary = min(pivot_results, key=lambda result: abs(result.pivot - item.metrics["price"])) if pivot_results else None
+        pivot = primary.pivot if primary else None
         plan = {k: finite(v) for k, v in asdict(item.trade_plan).items()} if item.trade_plan else {}
         candidate = {
             "code": item.code, "name": item.name,
             "market": row_meta.get("market", ""), "sector": row_meta.get("sector33", ""),
             "state": item.state.value, "confluence": item.confluence,
+            "breakout_strategy_count": item.breakout_strategy_count,
+            "aligned_strategy_count": item.aligned_strategy_count,
+            "coverage": finite(item.coverage), "confidence": item.confidence,
+            "pivot_fidelity": primary.pivot_fidelity.value if primary else item.pivot_fidelity.value,
+            "consensus_pivot_fidelity": item.pivot_fidelity.value,
+            "setup_id": item.setup_id,
             "momentum_percentile": finite(item.metrics.get("momentum_percentile")),
             "price": finite(item.metrics.get("price")), "pivot": finite(pivot),
+            "pivot_type": primary.pivot_type if primary else "N/A",
+            "pivot_basis": primary.pivot_basis if primary else "N/A",
             "trade_plan": plan,
             "methods": {name: result.state.value for name, result in item.strategies.items()},
             "summary": summary_text(item),
@@ -136,12 +155,21 @@ def export(refresh: bool, scope: str):
             **candidate,
             "as_of": item.as_of,
             "source": item.source,
-            "metrics": {key: finite(value) for key, value in item.metrics.items()},
+            "metrics": {key: clean(value) for key, value in item.metrics.items()
+                        if key not in ("pivot_registry",)},
             "chart": chart_rows(prepared[item.code]),
             "strategies": {name: {
                 "state": result.state.value,
                 "summary": result.summary,
+                "coverage": finite(result.coverage), "confidence": result.confidence,
                 "pivot": finite(result.pivot), "stop": finite(result.stop),
+                "pivot_type": result.pivot_type, "pivot_basis": result.pivot_basis,
+                "pivot_fidelity": result.pivot_fidelity.value,
+                "pivot_formed_date": result.pivot_formed_date,
+                "setup_start_date": result.setup_start_date,
+                "setup_id": result.setup_id, "setup_age": result.setup_age,
+                "distance_to_pivot_pct": finite(result.distance_to_pivot_pct),
+                "breakout_date": result.breakout_date, "breakout_age": result.breakout_age,
                 "counts": result.counts,
                 "conditions": [clean(condition.to_dict()) for condition in result.conditions],
             } for name, result in item.strategies.items()},
@@ -162,6 +190,8 @@ def export(refresh: bool, scope: str):
         "errors": len(errors),
         "candidates": candidates,
     }
+    validation = export_validation(db, ROOT / "public" / "dashboard" / "validation", cfg)
+    snapshot["validation"] = validation
     (OUT / "snapshot.json").write_text(
         json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
     print(f"exported {len(candidates)} stocks as of {snapshot['as_of']}")

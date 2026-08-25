@@ -35,6 +35,7 @@ jobs:
       - name: Analyze latest market data
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
+          VALIDATION_SEED_URL: https://takina6-source.github.io/japan-swing-lens/validation
         run: python scripts/export_web.py --refresh --scope "主要500+Growth"
       - run: touch public/dashboard/.nojekyll
       - uses: actions/configure-pages@v5

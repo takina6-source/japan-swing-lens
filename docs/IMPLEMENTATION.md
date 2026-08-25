@@ -1,5 +1,8 @@
 # 無料実用版 実装仕様と判定可能性
 
+> 2026.08-v4のPivot、Consensus、Signal追跡、Validation Exportは
+> [`VALIDATION.md`](VALIDATION.md) を参照してください。
+
 ## 取得経路
 
 標準経路は次の3段構成です。
@@ -35,7 +38,8 @@ J-Quants Freeは12週間遅延データとの任意照合だけに使い、ラ�
 | VCP | 目視要素あり | 60/30/15日レンジ収縮のPROXY |
 | Qullamaggie Breakout | 裁量要素あり | Momentum、収縮、Pivot、出来高のPROXY |
 | CAN SLIM C/L/M | 日足＋EDINETから一部可能 | 実装済み |
-| CAN SLIM A/I、製品・経営としてのN | 長期履歴・定性/保有データが必要 | N/Aまたは新高値PROXY |
+| CAN SLIM A | EDINET＋Yahoo年次EPS | 3期以上を実データ判定、欠損はN/A |
+| CAN SLIM I、製品・経営としてのN | 定性/保有データが必要 | N/Aまたは新高値PROXY |
 | Weinstein Stage 2 | 週足・目視要素あり | 150日MAと抵抗線のPROXY |
 | Darvas Box | 目視要素あり | 20日高安レンジのPROXY |
 | Connors RSI(2) | 計算可能 | 実装済み |
@@ -45,10 +49,13 @@ J-Quants Freeは12週間遅延データとの任意照合だけに使い、ラ�
 
 100点方式は使わず、次の辞書順で並べます。
 
-1. 状態
-2. Confluence
-3. 6か月Momentumの市場内Percentile
-4. 20日平均売買代金
+1. Consensus State
+2. Breakout Strategy Count
+3. Confluence
+4. Coverage / Confidence
+5. Pivot Fidelity
+6. 6か月Momentumの市場内Percentile
+7. 20日平均売買代金
 
 Connorsは上昇銘柄の短期押し目を扱うため、通常のbreakout不一致をマイナス評価しません。
 

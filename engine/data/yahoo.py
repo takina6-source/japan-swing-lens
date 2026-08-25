@@ -81,6 +81,29 @@ class YahooProvider:
             log.warning("Yahoo fundamentals failed for %s: %s", code, exc)
             return {"eps_growth": None, "sales_growth": None, "source": self.name}
 
+    def annual_eps(self, code: str) -> list[dict]:
+        """Yahooの年次損益計算書から分割調整後のEPS系列を取得する。
+
+        非公式経路のため、保存時はPRACTICALデータとして扱う。
+        """
+        yf = _yfinance_client()
+        statement = yf.Ticker(f"{code}.T").get_income_stmt(freq="yearly")
+        if statement is None or statement.empty:
+            return []
+        row_name = next((name for name in ("Diluted EPS", "Basic EPS", "DilutedEPS", "BasicEPS")
+                         if name in statement.index), None)
+        if row_name is None:
+            return []
+        rows = []
+        for column, value in statement.loc[row_name].items():
+            try:
+                if pd.notna(value):
+                    rows.append({"fiscal_year": str(pd.Timestamp(column).year),
+                                 "eps": float(value), "filing_date": None})
+            except (TypeError, ValueError):
+                continue
+        return sorted(rows, key=lambda row: row["fiscal_year"])
+
 
 def _pct(value):
     return None if value is None else float(value) * 100
