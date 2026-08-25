@@ -85,7 +85,9 @@ class Database:
               breakout_count INTEGER, aligned_count INTEGER, confluence INTEGER,
               coverage REAL, confidence TEXT, pivot_fidelity TEXT,
               momentum_percentile REAL, volume_ratio REAL, market_regime TEXT,
-              trading_value REAL, benchmark_close REAL, strategy_states_json TEXT,
+              trading_value REAL, trading_value_20d REAL, liquidity_level TEXT, liquid INTEGER,
+              current_trading_value REAL, trading_value_ratio REAL,
+              benchmark_close REAL, strategy_states_json TEXT,
               strategy_pivots_json TEXT, trade_plan_json TEXT, app_version TEXT,
               strategy_version TEXT, threshold_version TEXT, schema_version TEXT,
               created_at TEXT DEFAULT CURRENT_TIMESTAMP);
@@ -95,10 +97,30 @@ class Database:
               consensus_state TEXT, breakout_count INTEGER, aligned_count INTEGER,
               coverage REAL, confidence TEXT, momentum_percentile REAL,
               market_regime TEXT, strategy_states_json TEXT,
+              trading_value REAL, trading_value_ratio REAL, liquidity_level TEXT,
               failed_breakout INTEGER, hit_1r INTEGER, hit_2r INTEGER, hit_stop INTEGER,
               created_at TEXT DEFAULT CURRENT_TIMESTAMP,
               PRIMARY KEY(signal_id,date));
             """)
+            self._ensure_columns(con, "signal_snapshots", {
+                "trading_value_20d": "REAL",
+                "liquidity_level": "TEXT",
+                "liquid": "INTEGER",
+                "current_trading_value": "REAL",
+                "trading_value_ratio": "REAL",
+            })
+            self._ensure_columns(con, "signal_history", {
+                "trading_value": "REAL",
+                "trading_value_ratio": "REAL",
+                "liquidity_level": "TEXT",
+            })
+
+    @staticmethod
+    def _ensure_columns(con: sqlite3.Connection, table: str, columns: dict[str, str]):
+        existing = {row[1] for row in con.execute(f"PRAGMA table_info({table})")}
+        for name, definition in columns.items():
+            if name not in existing:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
 
     def save_prices(self, code: str, df: pd.DataFrame, source: str):
         rows = [(code, str(i.date()), float(r.open), float(r.high), float(r.low), float(r.close),
@@ -269,10 +291,11 @@ class Database:
                 con.execute("""INSERT OR IGNORE INTO signal_snapshots
                 (signal_id,setup_id,signal_date,code,stock_name,close,consensus_state,
                  breakout_count,aligned_count,confluence,coverage,confidence,pivot_fidelity,
-                 momentum_percentile,volume_ratio,market_regime,trading_value,benchmark_close,
+                 momentum_percentile,volume_ratio,market_regime,trading_value,trading_value_20d,
+                 liquidity_level,liquid,current_trading_value,trading_value_ratio,benchmark_close,
                  strategy_states_json,strategy_pivots_json,trade_plan_json,app_version,
                  strategy_version,threshold_version,schema_version)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (signal_id, analysis.setup_id, analysis.as_of, analysis.code, analysis.name,
                  float(x.close), analysis.state.value, analysis.breakout_strategy_count,
                  analysis.aligned_strategy_count, analysis.confluence, analysis.coverage,
@@ -280,6 +303,11 @@ class Database:
                  _finite(analysis.metrics.get("momentum_percentile")),
                  _finite(x.volume_ratio), analysis.metrics.get("market_regime"),
                  _finite(analysis.metrics.get("trading_value_20d")),
+                 _finite(analysis.metrics.get("trading_value_20d")),
+                 analysis.metrics.get("liquidity_level"),
+                 int(bool(analysis.metrics.get("liquid"))),
+                 _finite(analysis.metrics.get("trading_value")),
+                 _finite(analysis.metrics.get("trading_value_ratio")),
                  _finite(analysis.metrics.get("benchmark_price")),
                  json.dumps(states, ensure_ascii=False), json.dumps(pivots, ensure_ascii=False),
                  json.dumps(plan, ensure_ascii=False), cfg["logic_version"],
@@ -313,6 +341,9 @@ class Database:
                        analysis.coverage, analysis.confidence,
                        _finite(analysis.metrics.get("momentum_percentile")),
                        analysis.metrics.get("market_regime"), json.dumps(states, ensure_ascii=False),
+                       _finite(analysis.metrics.get("trading_value")),
+                       _finite(analysis.metrics.get("trading_value_ratio")),
+                       analysis.metrics.get("liquidity_level"),
                        int(failed), int(_hit_high(path, saved_plan.get("target_1r"))),
                        int(_hit_high(path, saved_plan.get("target_2r"))),
                        int(_hit_low(path, saved_plan.get("stop"))))
@@ -320,8 +351,9 @@ class Database:
                 con.execute("""INSERT OR REPLACE INTO signal_history
                 (signal_id,date,session_offset,close,return_abs,benchmark_relative_return,mfe,mae,
                  consensus_state,breakout_count,aligned_count,coverage,confidence,momentum_percentile,
-                 market_regime,strategy_states_json,failed_breakout,hit_1r,hit_2r,hit_stop)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", history)
+                 market_regime,strategy_states_json,trading_value,trading_value_ratio,liquidity_level,
+                 failed_breakout,hit_1r,hit_2r,hit_stop)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", history)
 
     def validation_rows(self) -> tuple[list[dict], list[dict]]:
         with self.connect() as con:
