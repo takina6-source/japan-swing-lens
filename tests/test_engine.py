@@ -40,3 +40,22 @@ def test_missing_long_history_is_na_not_crash():
     verdicts = [c.verdict for s in result.strategies.values() for c in s.conditions]
     assert Verdict.NA in verdicts
 
+
+def test_low_liquidity_is_warning_not_consensus_override():
+    cfg = load_config()
+    raw = {"9244": make_demo_history("9244")}
+    benchmark = make_demo_history("TOPIX")
+    prepared = prepare_universe(raw, benchmark)
+    low = prepared["9244"].copy()
+    low.loc[:, "trading_value"] = low["close"]
+    high = prepared["9244"].copy()
+    high.loc[:, "trading_value"] = 2_000_000_000
+    fundamentals = {"eps_growth": 30, "sales_growth": 25}
+    low_result = analyze("9244", "低流動性テスト", low, fundamentals,
+                         "TEST", benchmark, cfg)
+    high_result = analyze("9244", "高流動性テスト", high, fundamentals,
+                          "TEST", benchmark, cfg)
+    assert low_result.metrics["liquidity_level"] == "VERY LOW"
+    assert low_result.metrics["liquid"] is False
+    assert low_result.state == high_result.state
+    assert low_result.breakout_strategy_count == high_result.breakout_strategy_count
