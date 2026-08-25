@@ -21,6 +21,7 @@ J-Quantsの有料契約なしで運用できる構成を標準にしています
 - Coverage / Confidence
 - Signal Snapshot・1/5/10/20営業日後の自動追跡
 - ChatGPTレビュー用CSV / JSON
+- 20日平均売買代金の段階評価・低流動性警告・Trading Value Ratio
 
 `.github/workflows/update-dashboard.yml` は平日19:00（日本時間）に分析を実行し、
 成功した場合だけGitHub Pagesを更新します。失敗した日は前回公開版がそのまま残ります。

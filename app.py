@@ -25,6 +25,17 @@ def _fmt(v, digits=1):
     return "N/A" if _safe(v) < -0.5 else f"{float(v):,.{digits}f}"
 
 
+def _yen_short(v):
+    if v is None or _safe(v) < 0:
+        return "N/A"
+    value = float(v)
+    if value >= 100_000_000:
+        return f"{value / 100_000_000:,.1f}億円"
+    if value >= 10_000:
+        return f"{value / 10_000:,.0f}万円"
+    return f"{value:,.0f}円"
+
+
 def _display(v, unit):
     if v is None or (isinstance(v, float) and math.isnan(v)): return "N/A"
     if isinstance(v, float): return f"{v:,.2f}{unit}"
@@ -178,6 +189,8 @@ for a in filtered:
                  "突破": f"{a.breakout_strategy_count}/5", "一致": f"{a.confluence}/5",
                  "Coverage": f"{a.coverage:.0f}%", "Confidence": a.confidence,
                  "Mom順位": _fmt(a.metrics.get("momentum_percentile"), 0),
+                 "流動性": f"{a.metrics.get('liquidity_level', 'N/A')} / "
+                         f"{_yen_short(a.metrics.get('trading_value_20d'))}",
                  "Minervini": state_label(a.strategies["Minervini"].state),
                  "Qulla": state_label(a.strategies["Qullamaggie"].state),
                  "CAN": state_label(a.strategies["CAN SLIM"].state),
@@ -216,6 +229,18 @@ if secret_key("JQUANTS_API_KEY") and mode == "無料実用":
             st.caption(f"公式遅延照合: {official['date']} J-Quants ¥{official['close']:,.0f} / Yahoo ¥{yahoo_close:,.0f} / 差 {_fmt(difference,2)}%")
     except Exception as exc:
         st.caption(f"J-Quants Free照合は今回取得できませんでした: {exc}")
+
+st.subheader("Liquidity")
+liquidity_level = a.metrics.get("liquidity_level", "N/A")
+l1, l2, l3, l4 = st.columns(4)
+l1.metric("Liquidity Level", liquidity_level)
+l2.metric("20日平均売買代金", _yen_short(a.metrics.get("trading_value_20d")))
+l3.metric("本日売買代金", _yen_short(a.metrics.get("trading_value")))
+ratio = a.metrics.get("trading_value_ratio")
+l4.metric("Trading Value Ratio", f"{ratio:.1f}x" if ratio is not None else "N/A")
+st.caption(f"GOOD基準：{_yen_short(CFG['liquidity']['levels']['good'])} / 日。銘柄の強さとは別軸の売買執行評価です。")
+if liquidity_level in ("LOW", "VERY LOW"):
+    st.warning("流動性が低いため、スリッページ・価格急変・損切り時の不利約定に注意してください。")
 
 st.subheader("売買シナリオ")
 plan = getattr(a, "trade_plan", None)
