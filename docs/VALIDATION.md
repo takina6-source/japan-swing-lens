@@ -64,6 +64,16 @@ BREAKOUTであることを必須とする。1手法BREAKOUT＋1手法WATCH、ま
 ランキングは State → Breakout Strategy Count → Confluence → Coverage → Confidence →
 Pivot Fidelity → Momentum → Liquidity の辞書順であり、加重100点方式ではない。
 
+## Liquidity
+
+20営業日の `close × volume` 平均を通常時の売買代金として、VERY HIGH（10億円以上）、
+HIGH（5億円以上）、GOOD（1億円以上）、LOW（3,000万円以上）、VERY LOW（3,000万円未満）
+に分類する。当日売買代金と20日平均の比率をTrading Value Ratioとして併記する。
+
+Liquidityは売買執行上の注意表示とランキング最終順位にのみ使用し、Strategy、BREAKOUT、
+Consensus、Momentum、ConfidenceをFAILへ変更しない。LOW / VERY LOWはスリッページ、
+急変動、Exit時の不利約定に注意が必要な水準として警告する。
+
 ## Signal保存
 
 新規テーブルは既存DBを削除せず追加される。
@@ -75,6 +85,8 @@ Pivot Fidelity → Momentum → Liquidity の辞書順であり、加重100点�
 
 `signal_id = setup_id + strategy_version` とし、同じsetupを毎日別Signalとして保存しない。
 Snapshotは `INSERT OR IGNORE` のため、後日の閾値変更や財務補完で書き換わらない。
+Snapshotには20日平均売買代金、Liquidity Level、従来のliquid判定、当日売買代金、
+Trading Value Ratioを保存する。Historyにも当日売買代金、Ratio、Liquidity Levelを保存する。
 Historyは0、1、5、10、20営業日を含む毎回の観測を保存し、Consensus State、Breakout Count、
 各Strategy State、Return、Benchmark Relative Return、MFE、MAE、Failed Breakout、1R/2R/Stop到達を記録する。
 
@@ -88,6 +100,9 @@ GitHub Pagesの次の安定URLへ毎営業日自動出力する。
 - `/validation/signals.csv` / `signals.json`: Signal Snapshot
 - `/validation/signal_history.csv` / `signal_history.json`: State・Consensus時系列
 - `/validation/performance.csv` / `performance.json`: 1/5/10/20日後Return等
+
+Performanceには `initial_trading_value_20d`、`initial_liquidity_level`、
+`initial_trading_value_ratio` と、各観測時点のLiquidity関連列を含める。
 
 CSVは1列1意味、UTF-8 BOM、日付はISO `YYYY-MM-DD`、リターン単位はpercent、
 欠損は空欄、StateはEnum表記で統一する。`signal_id` で3ファイルを結合できる。
