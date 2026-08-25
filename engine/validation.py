@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from .database import Database
+from .liquidity import liquidity_level
 
 STRATEGIES = ("Minervini", "Qullamaggie", "CAN SLIM", "Weinstein", "Darvas", "Connors")
 SLUG = {"Minervini": "minervini", "Qullamaggie": "qullamaggie",
@@ -33,7 +34,7 @@ def seed_validation(db: Database, base_url: str | None) -> bool:
 def export_validation(db: Database, output: Path, cfg: dict) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     signals_raw, history_raw = db.validation_rows()
-    signals = [_signal_row(row) for row in signals_raw]
+    signals = [_signal_row(row, cfg) for row in signals_raw]
     history = [_history_row(row) for row in history_raw]
     performance = _performance_rows(signals, history, cfg["tracking"]["horizons"])
     _write_csv(output / "signals.csv", signals)
@@ -63,15 +64,24 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
             "return/mfe/maeの単位はpercent",
             "signal_idでSnapshot・History・Performanceを結合可能",
             "Signal Snapshotは発生時点の判定を保持し後日上書きしない",
+            "Liquidityは20日平均売買代金、trading_value_ratioは当日÷20日平均",
         ],
     }
     _write_json(output / "index.json", index)
     return index
 
 
-def _signal_row(row: dict) -> dict:
+def _signal_row(row: dict, cfg: dict) -> dict:
     out = {k: v for k, v in row.items()
            if k not in ("strategy_states_json", "strategy_pivots_json", "trade_plan_json", "created_at")}
+    trading_value_20d = row.get("trading_value_20d")
+    if trading_value_20d is None:
+        trading_value_20d = row.get("trading_value")
+    out["trading_value_20d"] = trading_value_20d
+    out["liquidity_level"] = row.get("liquidity_level") or liquidity_level(trading_value_20d, cfg)
+    out["liquid"] = (int(float(trading_value_20d) >=
+                         float(cfg["liquidity"]["minimum_trading_value_yen"]))
+                     if trading_value_20d is not None else row.get("liquid"))
     states = _loads(row.get("strategy_states_json"))
     pivots = _loads(row.get("strategy_pivots_json"))
     plan = _loads(row.get("trade_plan_json"))
@@ -111,7 +121,11 @@ def _performance_rows(signals: list[dict], history: list[dict], horizons) -> lis
                "initial_coverage": signal["coverage"], "initial_confidence": signal["confidence"],
                "pivot_fidelity": signal["pivot_fidelity"],
                "momentum_percentile": signal["momentum_percentile"],
-               "market_regime": signal["market_regime"]}
+               "market_regime": signal["market_regime"],
+               "initial_trading_value_20d": signal.get("trading_value_20d"),
+               "initial_liquidity_level": signal.get("liquidity_level"),
+               "initial_trading_value": signal.get("current_trading_value"),
+               "initial_trading_value_ratio": signal.get("trading_value_ratio")}
         observations = {int(r["session_offset"]): r for r in grouped.get(signal["signal_id"], [])}
         for horizon in horizons:
             obs = observations.get(int(horizon))
@@ -119,7 +133,10 @@ def _performance_rows(signals: list[dict], history: list[dict], horizons) -> lis
             for key, source in ((f"return_{suffix}_pct", "return_abs"),
                                 (f"benchmark_relative_{suffix}_pct", "benchmark_relative_return"),
                                 (f"consensus_state_{suffix}", "consensus_state"),
-                                (f"breakout_count_{suffix}", "breakout_count")):
+                                (f"breakout_count_{suffix}", "breakout_count"),
+                                (f"liquidity_level_{suffix}", "liquidity_level"),
+                                (f"trading_value_{suffix}", "trading_value"),
+                                (f"trading_value_ratio_{suffix}", "trading_value_ratio")):
                 out[key] = obs.get(source) if obs else None
         latest = max(observations.values(), key=lambda r: int(r["session_offset"]), default={})
         out["mfe_to_date_pct"] = latest.get("mfe")
