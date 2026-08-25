@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 
 from engine.analyzer import consensus_state
@@ -107,6 +109,9 @@ def test_snapshot_is_immutable_and_export_links_history(tmp_path):
     analysis = StockAnalysis("9251", "ＡＢ＆Ｃｏｍｐａｎｙ", str(frame.index[-1].date()),
                              "TEST", {"momentum_percentile": 90, "market_regime": "BULL",
                                       "trading_value_20d": 1e9,
+                                      "trading_value": 2e9,
+                                      "trading_value_ratio": 2.0,
+                                      "liquidity_level": "VERY HIGH", "liquid": True,
                                       "benchmark_price": float(benchmark.close.iloc[-1])},
                              strategies, SetupState.BREAKOUT, 5, 5, 5, 100, "HIGH",
                              Fidelity.PRACTICAL, "9251-consensus", plan)
@@ -116,11 +121,19 @@ def test_snapshot_is_immutable_and_export_links_history(tmp_path):
     signals, history = db.validation_rows()
     assert len(signals) == 1
     assert signals[0]["confluence"] == 5
+    assert signals[0]["trading_value_20d"] == 1e9
+    assert signals[0]["liquidity_level"] == "VERY HIGH"
+    assert signals[0]["trading_value_ratio"] == 2.0
     assert history[0]["signal_id"] == signals[0]["signal_id"]
+    assert history[0]["trading_value"] == 2e9
     index = export_validation(db, tmp_path / "validation", cfg)
     assert index["signal_count"] == 1
     assert (tmp_path / "validation" / "signals.csv").exists()
     assert (tmp_path / "validation" / "performance.json").exists()
+    performance = json.loads((tmp_path / "validation" / "performance.json").read_text())
+    assert performance[0]["initial_trading_value_20d"] == 1e9
+    assert performance[0]["initial_liquidity_level"] == "VERY HIGH"
+    assert performance[0]["initial_trading_value_ratio"] == 2.0
 
 
 def test_signal_transition_is_saved_at_0_5_10_20_sessions(tmp_path):
