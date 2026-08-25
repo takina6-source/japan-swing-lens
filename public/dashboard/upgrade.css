@@ -4,6 +4,11 @@
 .quality-grid>div{padding:10px 11px;background:#071722;border:1px solid var(--line);border-radius:12px}
 .quality-grid small,.validation-stats small{display:block;color:var(--muted);font-size:9px;margin-bottom:4px}
 .quality-grid strong{font-size:15px}
+.liquidity-badge{display:inline-block;margin-left:5px;padding:3px 6px;border-radius:6px;font-size:9px;font-weight:800;line-height:1.2;vertical-align:1px}
+.liquidity-ok{color:var(--mint);background:#123b32}.liquidity-low{color:var(--amber);background:#3b3018}.liquidity-very-low{color:#ffd2d8;background:#542333}.liquidity-na{color:var(--muted);background:#19303c}
+.liquidity-panel{margin:14px 0 18px;padding:14px;background:#091923;border:1px solid var(--line);border-radius:15px}
+.liquidity-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.liquidity-title .method-title{margin:0 0 7px}.liquidity-title .liquidity-badge{margin:0;font-size:10px}
+.execution-warning{color:var(--amber);font-size:10px;font-weight:800}.liquidity-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px}.liquidity-grid>div{padding:9px 10px;background:#071722;border-radius:10px}.liquidity-grid small{display:block;color:var(--muted);font-size:9px;margin-bottom:4px}.liquidity-grid strong{font-size:13px}.liquidity-warning,.liquidity-help{margin:11px 0 0;font-size:10px;line-height:1.6}.liquidity-warning{color:#ffc4cc}.liquidity-help{color:var(--muted)}
 .pivot-note,.pivot-detail{color:var(--amber);font-size:10px;line-height:1.5}
 .strategy-detail summary{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .count-chips{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
@@ -15,4 +20,4 @@
 .validation-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .validation-stats>div{background:#071722;border:1px solid var(--line);padding:13px;border-radius:13px}
 .downloads{display:flex;flex-wrap:wrap;gap:8px}.downloads a{padding:9px 12px;border-radius:10px;background:var(--mint);color:#062219;text-decoration:none;font-size:11px;font-weight:800}
-@media(max-width:600px){.top-actions>a{display:none}.validation{padding:18px}.validation-stats{grid-template-columns:1fr 1fr}.strategy-detail summary{align-items:flex-start;flex-direction:column}.count-chips{justify-content:flex-start}}
+@media(max-width:600px){.top-actions>a{display:none}.validation{padding:18px}.validation-stats{grid-template-columns:1fr 1fr}.strategy-detail summary{align-items:flex-start;flex-direction:column}.count-chips{justify-content:flex-start}.stock-name small .liquidity-badge{display:block;width:max-content;margin:5px 0 0}.liquidity-grid{grid-template-columns:1fr 1fr}}
