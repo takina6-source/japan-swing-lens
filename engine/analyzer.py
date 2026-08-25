@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from hashlib import sha1
 from .indicators import enrich, relative_strength
+from .liquidity import liquidity_level, trading_value_ratio
 from .models import Fidelity, SetupState, StockAnalysis, Verdict
 from .strategies import STRATEGIES
 from .trade_plan import build_trade_plan
@@ -44,11 +45,16 @@ def analyze(code: str, name: str, df: pd.DataFrame, fundamentals: dict,
             setup_registry: dict[str, dict] | None = None) -> StockAnalysis:
     x = df.iloc[-1]
     regime, bullish = market_regime(benchmark)
+    trading_value_20d = float(df.trading_value.tail(20).mean())
+    current_trading_value = float(x.trading_value)
     metrics = {**fundamentals, "code": code,
         "momentum_percentile": df.attrs.get("momentum_percentile"),
         "benchmark_rs_6m": df.attrs.get("benchmark_rs_6m"),
-        "trading_value_20d": float(df.trading_value.tail(20).mean()),
-        "liquid": float(df.trading_value.tail(20).mean()) >= cfg["liquidity"]["minimum_trading_value_yen"],
+        "trading_value_20d": trading_value_20d,
+        "trading_value": current_trading_value,
+        "trading_value_ratio": trading_value_ratio(current_trading_value, trading_value_20d),
+        "liquidity_level": liquidity_level(trading_value_20d, cfg),
+        "liquid": trading_value_20d >= cfg["liquidity"]["minimum_trading_value_yen"],
         "market_regime": regime, "market_bullish": bullish,
         "price": float(x.close), "momentum_1m": float(x.momentum_1m),
         "momentum_3m": float(x.momentum_3m), "momentum_6m": float(x.momentum_6m),
