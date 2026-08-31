@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import csv
 import json
+import math
+import statistics
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -12,6 +15,7 @@ from .database import Database
 from .liquidity import liquidity_level
 
 STRATEGIES = ("Minervini", "Qullamaggie", "CAN SLIM", "Weinstein", "Darvas", "Connors")
+TREND_STRATEGIES = STRATEGIES[:-1]
 SLUG = {"Minervini": "minervini", "Qullamaggie": "qullamaggie",
         "CAN SLIM": "can_slim", "Weinstein": "weinstein",
         "Darvas": "darvas", "Connors": "connors"}
@@ -21,11 +25,13 @@ def seed_validation(db: Database, base_url: str | None) -> bool:
     if not base_url:
         return False
     try:
-        response = requests.get(base_url.rstrip("/") + "/state.json", timeout=20)
+        response = requests.get(base_url.rstrip("/") + "/state.json", timeout=30)
         if response.status_code != 200:
             return False
         payload = response.json()
-        db.import_validation_rows(payload.get("signals", []), payload.get("history", []))
+        db.import_validation_rows(payload.get("signals", []), payload.get("history", []),
+                                  payload.get("controls", []),
+                                  payload.get("control_history", []))
         return True
     except Exception:
         return False
@@ -34,19 +40,44 @@ def seed_validation(db: Database, base_url: str | None) -> bool:
 def export_validation(db: Database, output: Path, cfg: dict) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     signals_raw, history_raw = db.validation_rows()
+    controls_raw, control_history_raw = db.control_validation_rows()
     signals = [_signal_row(row, cfg) for row in signals_raw]
     history = [_history_row(row) for row in history_raw]
-    performance = _performance_rows(signals, history, cfg["tracking"]["horizons"])
-    _write_csv(output / "signals.csv", signals)
-    _write_csv(output / "signal_history.csv", history)
-    _write_csv(output / "performance.csv", performance)
-    _write_json(output / "signals.json", signals)
-    _write_json(output / "signal_history.json", history)
-    _write_json(output / "performance.json", performance)
-    _write_json(output / "state.json", {"signals": signals_raw, "history": history_raw})
-    dates = [row["signal_date"] for row in signals if row.get("signal_date")]
-    history_dates = [row["date"] for row in history if row.get("date")]
+    controls = [_control_row(row, cfg) for row in controls_raw]
+    control_performance = _control_performance_rows(
+        controls, control_history_raw, cfg["tracking"]["horizons"])
+    performance = _performance_rows(
+        signals, history, control_performance, cfg["tracking"]["horizons"])
+    summary_rows = _summary_rows(performance, cfg)
+    for name, rows in (("signals", signals), ("signal_history", history),
+                       ("performance", performance), ("controls", controls),
+                       ("control_performance", control_performance)):
+        _write_csv(output / f"{name}.csv", rows)
+        _write_json(output / f"{name}.json", rows)
+    _write_csv(output / "summary.csv", summary_rows)
     generated = datetime.now(ZoneInfo("Asia/Tokyo")).isoformat(timespec="seconds")
+    _write_json(output / "summary.json", {
+        "generated_at": generated,
+        "schema_version": cfg["export_schema_version"],
+        "rows": summary_rows,
+        "notes": [
+            "Versionの異なるSignalは同じ集計行へ混在させない",
+            "INSUFFICIENT_SAMPLEは有効性を断定できない",
+            "Validation結果による閾値の自動最適化は行わない",
+        ],
+    })
+    _write_json(output / "state.json", {
+        "signals": signals_raw, "history": history_raw,
+        "controls": controls_raw, "control_history": control_history_raw,
+    })
+    dates = [row["signal_date"] for row in signals if row.get("signal_date")]
+    observation_dates = [row["date"] for row in history if row.get("date")]
+    available = [
+        "signals.csv", "signal_history.csv", "performance.csv",
+        "signals.json", "signal_history.json", "performance.json",
+        "controls.csv", "controls.json", "control_performance.csv",
+        "control_performance.json", "summary.csv", "summary.json",
+    ]
     index = {
         "generated_at": generated,
         "schema_version": cfg["export_schema_version"],
@@ -56,15 +87,19 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
         "signal_count": len(signals),
         "history_count": len(history),
         "performance_count": len(performance),
-        "observation_start": min(dates + history_dates) if dates or history_dates else None,
-        "observation_end": max(dates + history_dates) if dates or history_dates else None,
-        "available_files": ["signals.csv", "signal_history.csv", "performance.csv",
-                            "signals.json", "signal_history.json", "performance.json"],
+        "control_count": len(controls),
+        "control_group_count": len({row["control_group_id"] for row in controls}),
+        "control_performance_count": len(control_performance),
+        "summary_count": len(summary_rows),
+        "observation_start": min(dates + observation_dates) if dates or observation_dates else None,
+        "observation_end": max(dates + observation_dates) if dates or observation_dates else None,
+        "available_files": available,
         "notes": [
-            "return/mfe/maeの単位はpercent",
-            "signal_idでSnapshot・History・Performanceを結合可能",
-            "Signal Snapshotは発生時点の判定を保持し後日上書きしない",
-            "Liquidityは20日平均売買代金、trading_value_ratioは当日÷20日平均",
+            "return/mfe/mae/excess returnの単位はpercent",
+            "signal_idとcontrol_group_idでSignal・Controlを結合可能",
+            "Randomは固定seed、MatchedはSignal日時点の非Signal銘柄から固定",
+            "Market baselineは1306 ETF代理系列を継続使用",
+            "既存のSignal SnapshotとControl membershipは後日上書きしない",
         ],
     }
     _write_json(output / "index.json", index)
@@ -72,16 +107,9 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
 
 
 def _signal_row(row: dict, cfg: dict) -> dict:
-    out = {k: v for k, v in row.items()
-           if k not in ("strategy_states_json", "strategy_pivots_json", "trade_plan_json", "created_at")}
-    trading_value_20d = row.get("trading_value_20d")
-    if trading_value_20d is None:
-        trading_value_20d = row.get("trading_value")
-    out["trading_value_20d"] = trading_value_20d
-    out["liquidity_level"] = row.get("liquidity_level") or liquidity_level(trading_value_20d, cfg)
-    out["liquid"] = (int(float(trading_value_20d) >=
-                         float(cfg["liquidity"]["minimum_trading_value_yen"]))
-                     if trading_value_20d is not None else row.get("liquid"))
+    out = {key: value for key, value in row.items()
+           if key not in ("strategy_states_json", "strategy_pivots_json",
+                          "trade_plan_json", "created_at")}
     states = _loads(row.get("strategy_states_json"))
     pivots = _loads(row.get("strategy_pivots_json"))
     plan = _loads(row.get("trade_plan_json"))
@@ -95,50 +123,135 @@ def _signal_row(row: dict, cfg: dict) -> dict:
         out[f"{slug}_pivot_fidelity"] = pivot.get("fidelity")
     for key in ("entry_low", "entry_high", "stop", "target_1r", "target_2r"):
         out[key] = plan.get(key)
-    out["export_schema_version"] = row.get("schema_version")
+    out["strategy_combination"] = "+".join(
+        strategy for strategy in TREND_STRATEGIES if states.get(strategy) == "BREAKOUT") or "NONE"
+    out["momentum_bucket"] = _momentum_bucket(row.get("momentum_percentile"))
+    trading_value_20d = row.get("trading_value_20d")
+    if trading_value_20d is None:
+        trading_value_20d = row.get("trading_value")
+    out["trading_value_20d"] = trading_value_20d
+    out["liquidity_level"] = (
+        row.get("liquidity_level") or liquidity_level(trading_value_20d, cfg))
+    out["liquid"] = (row.get("liquid") if row.get("liquid") is not None
+                     else int(float(trading_value_20d or 0) >=
+                              float(cfg["liquidity"]["minimum_trading_value_yen"])))
+    out["export_schema_version"] = cfg["export_schema_version"]
     return out
 
 
 def _history_row(row: dict) -> dict:
-    out = {k: v for k, v in row.items() if k not in ("strategy_states_json", "created_at")}
+    out = {key: value for key, value in row.items()
+           if key not in ("strategy_states_json", "created_at")}
     states = _loads(row.get("strategy_states_json"))
     for strategy in STRATEGIES:
         out[f"{SLUG[strategy]}_state"] = states.get(strategy)
     return out
 
 
-def _performance_rows(signals: list[dict], history: list[dict], horizons) -> list[dict]:
-    grouped: dict[str, list[dict]] = {}
+def _control_row(row: dict, cfg: dict) -> dict:
+    out = {key: value for key, value in row.items() if key != "created_at"}
+    out["export_schema_version"] = cfg["export_schema_version"]
+    return out
+
+
+def _control_performance_rows(controls: list[dict], history: list[dict], horizons) -> list[dict]:
+    grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for row in history:
-        grouped.setdefault(row["signal_id"], []).append(row)
+        grouped[(row["control_group_id"], row["control_code"])].append(row)
     rows = []
-    for signal in signals:
-        out = {"signal_id": signal["signal_id"], "signal_date": signal["signal_date"],
-               "ticker": signal["code"], "stock_name": signal["stock_name"],
-               "initial_consensus_state": signal["consensus_state"],
-               "initial_breakout_count": signal["breakout_count"],
-               "initial_aligned_count": signal["aligned_count"],
-               "initial_coverage": signal["coverage"], "initial_confidence": signal["confidence"],
-               "pivot_fidelity": signal["pivot_fidelity"],
-               "momentum_percentile": signal["momentum_percentile"],
-               "market_regime": signal["market_regime"],
-               "initial_trading_value_20d": signal.get("trading_value_20d"),
-               "initial_liquidity_level": signal.get("liquidity_level"),
-               "initial_trading_value": signal.get("current_trading_value"),
-               "initial_trading_value_ratio": signal.get("trading_value_ratio")}
-        observations = {int(r["session_offset"]): r for r in grouped.get(signal["signal_id"], [])}
+    for member in controls:
+        key = (member["control_group_id"], member["control_code"])
+        observations = {int(row["session_offset"]): row for row in grouped.get(key, [])}
+        out = {column: member.get(column) for column in (
+            "control_group_id", "signal_id", "signal_date", "control_code", "control_name",
+            "control_type", "control_rank", "match_score", "initial_close",
+            "selection_version", "app_version", "strategy_version",
+            "threshold_version", "schema_version", "export_schema_version")}
         for horizon in horizons:
             obs = observations.get(int(horizon))
             suffix = f"{horizon}d"
-            for key, source in ((f"return_{suffix}_pct", "return_abs"),
-                                (f"benchmark_relative_{suffix}_pct", "benchmark_relative_return"),
-                                (f"consensus_state_{suffix}", "consensus_state"),
-                                (f"breakout_count_{suffix}", "breakout_count"),
-                                (f"liquidity_level_{suffix}", "liquidity_level"),
-                                (f"trading_value_{suffix}", "trading_value"),
-                                (f"trading_value_ratio_{suffix}", "trading_value_ratio")):
-                out[key] = obs.get(source) if obs else None
-        latest = max(observations.values(), key=lambda r: int(r["session_offset"]), default={})
+            out[f"return_{suffix}_pct"] = obs.get("return_abs") if obs else None
+            out[f"benchmark_relative_{suffix}_pct"] = (
+                obs.get("benchmark_relative_return") if obs else None)
+        latest = max(observations.values(), key=lambda row: int(row["session_offset"]), default={})
+        out["latest_session_offset"] = latest.get("session_offset")
+        out["mfe_to_date_pct"] = latest.get("mfe")
+        out["mae_to_date_pct"] = latest.get("mae")
+        rows.append(out)
+    return rows
+
+
+def _performance_rows(signals: list[dict], history: list[dict],
+                      control_performance: list[dict], horizons) -> list[dict]:
+    grouped_history: dict[str, list[dict]] = defaultdict(list)
+    for row in history:
+        grouped_history[row["signal_id"]].append(row)
+    controls: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for row in control_performance:
+        controls[(row["signal_id"], row["control_type"])].append(row)
+    rows = []
+    for signal in signals:
+        out = {
+            "signal_id": signal["signal_id"], "signal_date": signal["signal_date"],
+            "ticker": signal["code"], "stock_name": signal["stock_name"],
+            "initial_consensus_state": signal["consensus_state"],
+            "initial_breakout_count": signal["breakout_count"],
+            "initial_aligned_count": signal["aligned_count"],
+            "strategy_combination": signal.get("strategy_combination"),
+            "initial_coverage": signal["coverage"],
+            "initial_confidence": signal["confidence"],
+            "pivot_fidelity": signal["pivot_fidelity"],
+            "momentum_percentile": signal["momentum_percentile"],
+            "momentum_bucket": signal.get("momentum_bucket"),
+            "trading_value": signal.get("trading_value"),
+            "initial_trading_value_20d": signal.get("trading_value_20d"),
+            "initial_liquidity_level": signal.get("liquidity_level"),
+            "initial_trading_value": signal.get("current_trading_value"),
+            "initial_trading_value_ratio": signal.get("trading_value_ratio"),
+            "liquidity_level": signal.get("liquidity_level"),
+            "market_regime": signal["market_regime"],
+            "app_version": signal.get("app_version"),
+            "strategy_version": signal.get("strategy_version"),
+            "threshold_version": signal.get("threshold_version"),
+            "schema_version": signal.get("schema_version"),
+            "export_schema_version": signal.get("export_schema_version"),
+        }
+        observations = {int(row["session_offset"]): row
+                        for row in grouped_history.get(signal["signal_id"], [])}
+        for horizon in horizons:
+            obs = observations.get(int(horizon))
+            suffix = f"{horizon}d"
+            signal_return = obs.get("return_abs") if obs else None
+            market_excess = obs.get("benchmark_relative_return") if obs else None
+            out[f"return_{suffix}_pct"] = signal_return
+            out[f"market_return_{suffix}_pct"] = (
+                signal_return - market_excess
+                if signal_return is not None and market_excess is not None else None)
+            out[f"benchmark_relative_{suffix}_pct"] = market_excess
+            out[f"excess_vs_market_{suffix}_pct"] = market_excess
+            out[f"consensus_state_{suffix}"] = obs.get("consensus_state") if obs else None
+            out[f"breakout_count_{suffix}"] = obs.get("breakout_count") if obs else None
+            out[f"liquidity_level_{suffix}"] = obs.get("liquidity_level") if obs else None
+            out[f"trading_value_{suffix}"] = obs.get("trading_value") if obs else None
+            out[f"trading_value_ratio_{suffix}"] = (
+                obs.get("trading_value_ratio") if obs else None)
+            for control_type in ("RANDOM", "MATCHED"):
+                prefix = control_type.lower()
+                values = [row.get(f"return_{suffix}_pct")
+                          for row in controls.get((signal["signal_id"], control_type), [])]
+                values = [float(value) for value in values if value is not None]
+                baseline_mean = statistics.fmean(values) if values else None
+                baseline_median = statistics.median(values) if values else None
+                out[f"{prefix}_sample_count_{suffix}"] = len(values)
+                out[f"{prefix}_return_mean_{suffix}_pct"] = baseline_mean
+                out[f"{prefix}_return_median_{suffix}_pct"] = baseline_median
+                out[f"excess_vs_{prefix}_{suffix}_pct"] = (
+                    signal_return - baseline_mean
+                    if signal_return is not None and baseline_mean is not None else None)
+                out[f"excess_vs_{prefix}_median_{suffix}_pct"] = (
+                    signal_return - baseline_median
+                    if signal_return is not None and baseline_median is not None else None)
+        latest = max(observations.values(), key=lambda row: int(row["session_offset"]), default={})
         out["mfe_to_date_pct"] = latest.get("mfe")
         out["mae_to_date_pct"] = latest.get("mae")
         out["failed_breakout"] = latest.get("failed_breakout")
@@ -147,6 +260,110 @@ def _performance_rows(signals: list[dict], history: list[dict], horizons) -> lis
         out["hit_stop"] = latest.get("hit_stop")
         rows.append(out)
     return rows
+
+
+def _summary_rows(performance: list[dict], cfg: dict) -> list[dict]:
+    groups: dict[tuple, list[dict]] = defaultdict(list)
+    combination_min = int(cfg["summary"]["minimum_combination_sample"])
+    for row in performance:
+        version = (row.get("app_version"), row.get("strategy_version"),
+                   row.get("threshold_version"), row.get("schema_version"))
+        dimensions = [
+            ("ALL", "ALL"),
+            ("CONSENSUS_STATE", row.get("initial_consensus_state")),
+            ("BREAKOUT_COUNT", str(row.get("initial_breakout_count"))),
+            ("STRATEGY_COMBINATION", row.get("strategy_combination")),
+            ("MOMENTUM_BUCKET", row.get("momentum_bucket")),
+            ("LIQUIDITY", row.get("liquidity_level")),
+            ("PIVOT_FIDELITY", row.get("pivot_fidelity")),
+            ("MARKET_REGIME", row.get("market_regime")),
+        ]
+        for horizon in cfg["tracking"]["horizons"]:
+            if row.get(f"return_{horizon}d_pct") is None:
+                continue
+            for dimension, value in dimensions:
+                if value not in (None, ""):
+                    groups[(*version, dimension, str(value), int(horizon))].append(row)
+    rows = []
+    for key, items in sorted(groups.items(), key=lambda item: tuple(str(value) for value in item[0])):
+        app_version, strategy_version, threshold_version, schema_version, dimension, value, horizon = key
+        if dimension == "STRATEGY_COMBINATION" and len(items) < combination_min:
+            continue
+        returns = _values(items, f"return_{horizon}d_pct")
+        excess_market = _values(items, f"excess_vs_market_{horizon}d_pct")
+        excess_random = _values(items, f"excess_vs_random_{horizon}d_pct")
+        excess_matched = _values(items, f"excess_vs_matched_{horizon}d_pct")
+        mfe = _values(items, "mfe_to_date_pct")
+        mae = _values(items, "mae_to_date_pct")
+        stddev = statistics.stdev(returns) if len(returns) >= 2 else None
+        standard_error = stddev / math.sqrt(len(returns)) if stddev is not None else None
+        rows.append({
+            "app_version": app_version,
+            "strategy_version": strategy_version,
+            "threshold_version": threshold_version,
+            "schema_version": schema_version,
+            "dimension": dimension,
+            "group_value": value,
+            "horizon_days": horizon,
+            "sample_count": len(returns),
+            "sample_strength": _sample_strength(len(returns), cfg),
+            "average_return_pct": _mean(returns),
+            "median_return_pct": _median(returns),
+            "positive_rate_pct": (sum(value > 0 for value in returns) / len(returns) * 100
+                                  if returns else None),
+            "average_excess_vs_market_pct": _mean(excess_market),
+            "average_excess_vs_random_pct": _mean(excess_random),
+            "average_excess_vs_matched_pct": _mean(excess_matched),
+            "median_excess_vs_matched_pct": _median(excess_matched),
+            "average_mfe_pct": _mean(mfe),
+            "average_mae_pct": _mean(mae),
+            "standard_deviation_pct": stddev,
+            "standard_error_pct": standard_error,
+            "confidence_interval_95_low_pct": (
+                _mean(returns) - 1.96 * standard_error if standard_error is not None else None),
+            "confidence_interval_95_high_pct": (
+                _mean(returns) + 1.96 * standard_error if standard_error is not None else None),
+        })
+    return rows
+
+
+def _momentum_bucket(value) -> str:
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return "N/A"
+    if value < 70:
+        return "<70"
+    if value < 80:
+        return "70-79"
+    if value < 90:
+        return "80-89"
+    if value < 95:
+        return "90-94"
+    return "95-100"
+
+
+def _sample_strength(count: int, cfg: dict) -> str:
+    thresholds = cfg["summary"]["sample_strength"]
+    if count < int(thresholds["preliminary"]):
+        return "INSUFFICIENT"
+    if count < int(thresholds["moderate"]):
+        return "PRELIMINARY"
+    if count < int(thresholds["stronger"]):
+        return "MODERATE"
+    return "STRONGER_SAMPLE"
+
+
+def _values(rows: list[dict], key: str) -> list[float]:
+    return [float(row[key]) for row in rows if row.get(key) is not None]
+
+
+def _mean(values: list[float]) -> float | None:
+    return statistics.fmean(values) if values else None
+
+
+def _median(values: list[float]) -> float | None:
+    return statistics.median(values) if values else None
 
 
 def _write_csv(path: Path, rows: list[dict]):

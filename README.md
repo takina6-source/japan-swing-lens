@@ -49,8 +49,9 @@ EDINETを使う場合だけ、GitHubの **Settings → Secrets and variables →
 
 `https://takina6-source.github.io/japan-swing-lens/validation/index.json`
 
-ChatGPTは件数と期間を確認後、目的に応じて `signals.csv`、`signal_history.csv`、
-`performance.csv` を参照できます。画面下部の「検証データ」からもダウンロードできます。
+ChatGPTは件数と期間を確認後、目的に応じて `signals.csv`、`performance.csv`、
+`controls.csv`、`control_performance.csv`、`summary.csv` を参照できます。Market、固定Random、
+条件の近い非Signal銘柄に対するExcess Returnも比較できます。画面下部から直接ダウンロードできます。
 詳細なschemaと判定仕様は [`docs/VALIDATION.md`](docs/VALIDATION.md) を参照してください。
 
 ## 起動方法

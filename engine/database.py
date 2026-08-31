@@ -101,6 +101,30 @@ class Database:
               failed_breakout INTEGER, hit_1r INTEGER, hit_2r INTEGER, hit_stop INTEGER,
               created_at TEXT DEFAULT CURRENT_TIMESTAMP,
               PRIMARY KEY(signal_id,date));
+            CREATE TABLE IF NOT EXISTS control_members (
+              control_group_id TEXT, signal_id TEXT, signal_date TEXT,
+              control_code TEXT, control_name TEXT, control_type TEXT,
+              control_rank INTEGER, match_score REAL, matched_at TEXT,
+              initial_close REAL, signal_momentum_percentile REAL,
+              control_momentum_percentile REAL, signal_trading_value REAL,
+              control_trading_value REAL, signal_market TEXT, control_market TEXT,
+              signal_size_class TEXT, control_size_class TEXT,
+              signal_price REAL, control_price REAL, selection_version TEXT,
+              app_version TEXT, strategy_version TEXT, threshold_version TEXT,
+              schema_version TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY(control_group_id,control_code));
+            CREATE TABLE IF NOT EXISTS control_history (
+              control_group_id TEXT, signal_id TEXT, control_code TEXT,
+              control_type TEXT, date TEXT, session_offset INTEGER, close REAL,
+              return_abs REAL, benchmark_relative_return REAL, mfe REAL, mae REAL,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY(control_group_id,control_code,date));
+            CREATE INDEX IF NOT EXISTS idx_control_members_signal_id
+              ON control_members(signal_id);
+            CREATE INDEX IF NOT EXISTS idx_control_members_control_code
+              ON control_members(control_code);
+            CREATE INDEX IF NOT EXISTS idx_control_history_signal_type_offset
+              ON control_history(signal_id,control_type,session_offset);
             """)
             self._ensure_columns(con, "signal_snapshots", {
                 "trading_value_20d": "REAL",
@@ -114,13 +138,14 @@ class Database:
                 "trading_value_ratio": "REAL",
                 "liquidity_level": "TEXT",
             })
+            con.execute("PRAGMA optimize")
 
     @staticmethod
     def _ensure_columns(con: sqlite3.Connection, table: str, columns: dict[str, str]):
         existing = {row[1] for row in con.execute(f"PRAGMA table_info({table})")}
-        for name, definition in columns.items():
+        for name, declaration in columns.items():
             if name not in existing:
-                con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {declaration}")
 
     def save_prices(self, code: str, df: pd.DataFrame, source: str):
         rows = [(code, str(i.date()), float(r.open), float(r.high), float(r.low), float(r.close),
@@ -362,9 +387,56 @@ class Database:
             history = [dict(r) for r in con.execute("SELECT * FROM signal_history ORDER BY signal_id,date")]
         return signals, history
 
-    def import_validation_rows(self, signals: list[dict], history: list[dict]):
+    def signal_snapshot(self, signal_id: str) -> dict | None:
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            row = con.execute("SELECT * FROM signal_snapshots WHERE signal_id=?",
+                              (signal_id,)).fetchone()
+        return dict(row) if row else None
+
+    def save_control_members(self, rows: list[dict]):
+        _insert_dicts(self, "control_members", rows, "control_group_id,control_code")
+
+    def load_control_members(self, signal_id: str | None = None) -> list[dict]:
+        query, args = "SELECT * FROM control_members", []
+        if signal_id:
+            query += " WHERE signal_id=?"
+            args.append(signal_id)
+        query += " ORDER BY signal_date,signal_id,control_type,control_rank,control_code"
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            return [dict(row) for row in con.execute(query, args)]
+
+    def save_control_history(self, rows: list[dict]):
+        if not rows:
+            return
+        columns = ["control_group_id", "signal_id", "control_code", "control_type",
+                   "date", "session_offset", "close", "return_abs",
+                   "benchmark_relative_return", "mfe", "mae"]
+        marks = ",".join("?" for _ in columns)
+        with self.connect() as con:
+            con.executemany(f"""INSERT OR REPLACE INTO control_history
+            ({','.join(columns)}) VALUES({marks})""",
+                            [[row.get(column) for column in columns] for row in rows])
+
+    def control_validation_rows(self) -> tuple[list[dict], list[dict]]:
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            members = [dict(row) for row in con.execute("""SELECT * FROM control_members
+                ORDER BY signal_date,signal_id,control_type,control_rank,control_code""")]
+            history = [dict(row) for row in con.execute("""SELECT * FROM control_history
+                ORDER BY signal_id,control_type,control_code,date""")]
+        return members, history
+
+    def import_validation_rows(self, signals: list[dict], history: list[dict],
+                               controls: list[dict] | None = None,
+                               control_history: list[dict] | None = None):
         _insert_dicts(self, "signal_snapshots", signals, "signal_id")
         _insert_dicts(self, "signal_history", history, "signal_id,date")
+        _insert_dicts(self, "control_members", controls or [],
+                      "control_group_id,control_code")
+        _insert_dicts(self, "control_history", control_history or [],
+                      "control_group_id,control_code,date")
 
 
 def _insert_dicts(db: Database, table: str, rows: list[dict], key: str):

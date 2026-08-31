@@ -1,8 +1,8 @@
-logic_version: "2026.08-v5-liquidity"
+logic_version: "2026.08-v6-control-observer"
 strategy_version: "pivot-consensus-v1"
-threshold_version: "2026.08-v5"
-schema_version: "2.1"
-export_schema_version: "2.1"
+threshold_version: "2026.08-v6-control"
+schema_version: "3.0"
+export_schema_version: "3.0"
 free_data:
   yahoo_batch_size: 80
   initial_history_period: "2y"
@@ -79,3 +79,22 @@ consensus:
 tracking:
   horizons: [1, 5, 10, 20]
   max_sessions: 20
+controls:
+  selection_version: "control-v1"
+  random_count: 20
+  matched_count: 8
+  matching:
+    liquidity_weight: 5
+    momentum_weight: 4
+    market_weight: 2
+    size_class_weight: 1
+    price_weight: 0.5
+    liquidity_log10_scale: 0.5
+    momentum_scale: 10
+    price_log10_scale: 0.3
+summary:
+  minimum_combination_sample: 5
+  sample_strength:
+    preliminary: 30
+    moderate: 100
+    stronger: 300

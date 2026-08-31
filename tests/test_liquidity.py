@@ -14,4 +14,3 @@ def test_liquidity_level_boundaries():
 def test_trading_value_ratio_keeps_normal_liquidity_separate():
     assert trading_value_ratio(200_000_000, 40_000_000) == 5.0
     assert trading_value_ratio(1, 0) is None
-

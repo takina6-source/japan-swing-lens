@@ -10,6 +10,7 @@ import streamlit as st
 from engine.analyzer import analyze, prepare_universe, rank
 from engine.charts import price_chart
 from engine.config import ROOT, load_config
+from engine.controls import update_controls
 from engine.data import DataService
 from engine.database import Database
 from engine.models import Layer, SetupState
@@ -95,6 +96,8 @@ def run_scan(mode: str, scope: str, edinet_marker: str, logic_version: str):
         DB.save_analysis(item, CFG["logic_version"])
         DB.save_signal_tracking(item, df, benchmark, CFG)
         analyses.append(item)
+    security_meta = {row["code"]: row for row in DB.load_securities()}
+    update_controls(DB, analyses, prepared, benchmark, security_meta, CFG)
     return rank(analyses), prepared, errors, data_status
 
 
@@ -231,15 +234,15 @@ if secret_key("JQUANTS_API_KEY") and mode == "無料実用":
         st.caption(f"J-Quants Free照合は今回取得できませんでした: {exc}")
 
 st.subheader("Liquidity")
-liquidity_level = a.metrics.get("liquidity_level", "N/A")
+liquidity = a.metrics.get("liquidity_level", "N/A")
 l1, l2, l3, l4 = st.columns(4)
-l1.metric("Liquidity Level", liquidity_level)
+l1.metric("Liquidity Level", liquidity)
 l2.metric("20日平均売買代金", _yen_short(a.metrics.get("trading_value_20d")))
 l3.metric("本日売買代金", _yen_short(a.metrics.get("trading_value")))
 ratio = a.metrics.get("trading_value_ratio")
 l4.metric("Trading Value Ratio", f"{ratio:.1f}x" if ratio is not None else "N/A")
 st.caption(f"GOOD基準：{_yen_short(CFG['liquidity']['levels']['good'])} / 日。銘柄の強さとは別軸の売買執行評価です。")
-if liquidity_level in ("LOW", "VERY LOW"):
+if liquidity in ("LOW", "VERY LOW"):
     st.warning("流動性が低いため、スリッページ・価格急変・損切り時の不利約定に注意してください。")
 
 st.subheader("売買シナリオ")

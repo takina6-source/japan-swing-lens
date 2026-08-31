@@ -92,6 +92,43 @@ Historyは0、1、5、10、20営業日を含む毎回の観測を保存し、Con
 
 Versionは `logic_version`、`strategy_version`、`threshold_version`、`schema_version` の4種類を保存する。
 
+## Control Group / Baseline
+
+Market Benchmarkだけでは「相場全体が上がったためSignalも上がった」ケースと、スクリーナー固有の
+銘柄選択能力を分離しにくい。そのため、Signal発生日Tの同一分析Universeから次の対照群を固定する。
+
+1. **Market**: 従来どおり1306 ETFをTOPIX代理系列として使用する。
+2. **Random**: Signal銘柄以外から20銘柄を抽出する。`signal_id + selection_version`のSHA-256を
+   seedにするため、Universeの入力順や再実行でメンバーは変化しない。
+3. **Matched**: BREAKOUT / BREAKOUT WATCHを除外し、流動性、Momentum、市場区分、JPX規模区分、
+   株価水準の距離が小さい順に最大8銘柄を選ぶ。時価総額の無料一括データがないため、JPX規模区分を
+   Market Cap帯の代理にする。
+
+`control_members`はSignal発生日に`INSERT OR IGNORE`で固定し、後日選び直さない。
+`control_group_id`と`signal_id`で結合でき、選択時点の価格、Momentum、売買代金、市場・規模区分、
+Versionも保存する。導入前の過去Signalは当時のUniverseを復元できないため、未来情報を避ける目的で
+遡及的なControl選択を行わない。
+
+## Control Performance / Excess Return
+
+`control_history`はSignalと同じ基準日から、各Controlの1・5・10・20営業日Return、Benchmark
+Relative Return、MFE、MAEを同じ式で記録する。`performance`では各horizonについて次を出力する。
+
+- `excess_vs_market`: Signal Return − 1306 ETF Return
+- `excess_vs_random`: Signal Return − Random Control平均Return
+- `excess_vs_matched`: Signal Return − Matched Control平均Return
+- Random / Matchedは平均と中央値、サンプル数も併記する
+
+## Validation Summary
+
+`summary.csv` / `summary.json`はVersionを跨がず、horizon別に全Signal、初期State、Breakout数、
+Strategy Combination、Momentum Bucket、Liquidity Level、Pivot Fidelity、Market Regimeを集計する。
+平均・中央値・上昇率・各Excess Return・MFE・MAE・標準偏差・Standard Error・95%信頼区間を出力する。
+
+Sample Strengthは設定値に従い、30未満を`INSUFFICIENT`、30〜99を`PRELIMINARY`、100〜299を
+`MODERATE`、300以上を`STRONGER_SAMPLE`とする。p値や単一指標から自動的に「有効」と判定せず、
+結果を用いた閾値の自動最適化も行わない。
+
 ## 公開Export
 
 GitHub Pagesの次の安定URLへ毎営業日自動出力する。
@@ -103,19 +140,26 @@ GitHub Pagesの次の安定URLへ毎営業日自動出力する。
 
 Performanceには `initial_trading_value_20d`、`initial_liquidity_level`、
 `initial_trading_value_ratio` と、各観測時点のLiquidity関連列を含める。
+- `/validation/controls.csv` / `controls.json`: Signal発生日に固定したControl membership
+- `/validation/control_performance.csv` / `control_performance.json`: Control銘柄ごとのForward Performance
+- `/validation/summary.csv` / `summary.json`: Signal vs Market / Random / MatchedのVersion別集計
 
 CSVは1列1意味、UTF-8 BOM、日付はISO `YYYY-MM-DD`、リターン単位はpercent、
-欠損は空欄、StateはEnum表記で統一する。`signal_id` で3ファイルを結合できる。
+欠損は空欄、StateはEnum表記で統一する。`signal_id` / `control_group_id`で結合できる。
 
 GitHub Actions cacheが失われても、直前公開版の `validation/state.json` を次回実行時に
-再取り込みする。API Key、Token、ローカルPath、個人情報は公開しない。
+再取り込みする。`state.json`にはControl membershipとHistoryも含める。API Key、Token、
+ローカルPath、個人情報は公開しない。
 
 ## Look-ahead / Survivorshipの制約
 
 - PivotとBREAKOUTにはT-1までの価格だけを使用する。
 - Signal Snapshotの財務値は当時DBに保存済みの値だけを使う。
+- ControlはSignal発生日の同一Universeと同日価格だけで選び、未来のReturnをMatchingに使用しない。
+- 現在のUniverseから導入前SignalのControlを遡及選択しない。
 - EDINETの公表日は保存するが、Yahoo年次EPSは正確な公表日を取得できない場合がある。
 - 現在のJPX銘柄一覧を母集団にするため、上場廃止銘柄を含む完全なSurvivorship Bias除去は未対応。
+- Random / Matched Control導入後も、現在Universeを使用するSurvivorship Biasは完全解消しない。
 - TOPIXは1306 ETFの無料代理系列。配当・追跡誤差により公式指数と差が生じる。
 - Yahoo Financeは非公式経路で、補正仕様・可用性を保証できない。
 

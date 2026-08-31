@@ -1,6 +1,6 @@
 # 無料実用版 実装仕様と判定可能性
 
-> 2026.08-v4のPivot、Consensus、Signal追跡、Validation Exportは
+> 2026.08-v5のPivot、Consensus、Signal／Control追跡、Validation Exportは
 > [`VALIDATION.md`](VALIDATION.md) を参照してください。
 
 ## 取得経路
@@ -72,7 +72,8 @@ Connorsは上昇銘柄の短期押し目を扱うため、通常のbreakout不�
 ## 保存と限界
 
 SQLiteには銘柄マスタ、日足、財務、API取得ログ、条件単位の判定、売買シナリオ、
-ロジックVersionを保存します。`signals` テーブルは将来リターンとMFE/MAEの検証列を持ちます。
+ロジックVersionを保存します。`signal_snapshots` / `signal_history`に加え、固定した対照銘柄を
+`control_members`、同じ基準日からの推移を`control_history`へ保存します。
 
 Yahoo FinanceはJPX公式データではなく、仕様・可用性は保証されません。EDINETは法定開示中心のため
 速報性がなく、タグや文書差によって財務値を抽出できない場合があります。取得できない条件は

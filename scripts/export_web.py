@@ -15,6 +15,7 @@ import pandas as pd
 
 from engine.analyzer import analyze, prepare_universe, rank
 from engine.config import ROOT, load_config
+from engine.controls import update_controls
 from engine.data.demo import make_demo_history
 from engine.data.jpx import select_scope
 from engine.data.service import DataService
@@ -121,6 +122,7 @@ def export(refresh: bool, scope: str):
     for item in analyses:
         db.save_analysis(item, cfg["logic_version"])
         db.save_signal_tracking(item, prepared[item.code], benchmark, cfg)
+    update_controls(db, analyses, prepared, benchmark, meta, cfg)
     OUT.mkdir(parents=True, exist_ok=True)
     detail_dir = OUT / "details"
     detail_dir.mkdir(exist_ok=True)
