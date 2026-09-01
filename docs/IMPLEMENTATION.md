@@ -1,7 +1,9 @@
 # 無料実用版 実装仕様と判定可能性
 
-> 2026.08-v5のPivot、Consensus、Signal／Control追跡、Validation Exportは
+> Core `2026.08-v6-control-observer` のPivot、Consensus、Signal／Control追跡、Validation Exportは
 > [`VALIDATION.md`](VALIDATION.md) を参照してください。
+> Coreから独立した `2026.09-exp-v1` の3つのExperimental Strategyは
+> [`EXPERIMENTAL.md`](EXPERIMENTAL.md) を参照してください。
 
 ## 取得経路
 
@@ -44,6 +46,9 @@ J-Quants Freeは12週間遅延データとの任意照合だけに使い、ラ�
 | Darvas Box | 目視要素あり | 20日高安レンジのPROXY |
 | Connors RSI(2) | 計算可能 | 実装済み |
 | 決算予定 | 安定した無料一括経路なし | N/A |
+| Turtle / Donchian | Yahoo OHLCVから計算可能 | Experimentalで実装済み |
+| Earnings Momentum | EDINET / Yahoo財務キャッシュ | Experimentalで実装済み。Revision欠損はN/A |
+| Sector Relative Strength | JPX 33業種＋Yahoo日足 | Experimentalで実装済み |
 
 ## ランキング
 

@@ -109,10 +109,11 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
 def _signal_row(row: dict, cfg: dict) -> dict:
     out = {key: value for key, value in row.items()
            if key not in ("strategy_states_json", "strategy_pivots_json",
-                          "trade_plan_json", "created_at")}
+                          "trade_plan_json", "experimental_states_json", "created_at")}
     states = _loads(row.get("strategy_states_json"))
     pivots = _loads(row.get("strategy_pivots_json"))
     plan = _loads(row.get("trade_plan_json"))
+    experimental = _loads(row.get("experimental_states_json"))
     for strategy in STRATEGIES:
         slug = SLUG[strategy]
         pivot = pivots.get(strategy, {})
@@ -136,6 +137,9 @@ def _signal_row(row: dict, cfg: dict) -> dict:
                      else int(float(trading_value_20d or 0) >=
                               float(cfg["liquidity"]["minimum_trading_value_yen"])))
     out["export_schema_version"] = cfg["export_schema_version"]
+    out["experimental_turtle_state"] = experimental.get("TURTLE")
+    out["experimental_earnings_state"] = experimental.get("EARNINGS")
+    out["experimental_sector_state"] = experimental.get("SECTOR_RS")
     return out
 
 
@@ -214,6 +218,9 @@ def _performance_rows(signals: list[dict], history: list[dict],
             "strategy_version": signal.get("strategy_version"),
             "threshold_version": signal.get("threshold_version"),
             "schema_version": signal.get("schema_version"),
+            "experimental_version": signal.get("experimental_version"),
+            "experimental_alignment": signal.get("experimental_alignment"),
+            "experimental_combination": signal.get("experimental_combination"),
             "export_schema_version": signal.get("export_schema_version"),
         }
         observations = {int(row["session_offset"]): row
@@ -277,6 +284,8 @@ def _summary_rows(performance: list[dict], cfg: dict) -> list[dict]:
             ("LIQUIDITY", row.get("liquidity_level")),
             ("PIVOT_FIDELITY", row.get("pivot_fidelity")),
             ("MARKET_REGIME", row.get("market_regime")),
+            ("EXPERIMENTAL_ALIGNMENT", row.get("experimental_alignment")),
+            ("EXPERIMENTAL_COMBINATION", row.get("experimental_combination")),
         ]
         for horizon in cfg["tracking"]["horizons"]:
             if row.get(f"return_{horizon}d_pct") is None:

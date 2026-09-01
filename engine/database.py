@@ -68,7 +68,7 @@ class Database:
               updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS fundamentals (
               code TEXT PRIMARY KEY, filing_date TEXT, eps_growth REAL, sales_growth REAL,
-              roe REAL, bps REAL, source TEXT, freshness_note TEXT,
+              operating_profit_growth REAL, roe REAL, bps REAL, source TEXT, freshness_note TEXT,
               updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS annual_eps (
               code TEXT, fiscal_year TEXT, eps REAL, filing_date TEXT, source TEXT,
@@ -90,6 +90,8 @@ class Database:
               benchmark_close REAL, strategy_states_json TEXT,
               strategy_pivots_json TEXT, trade_plan_json TEXT, app_version TEXT,
               strategy_version TEXT, threshold_version TEXT, schema_version TEXT,
+              experimental_version TEXT, experimental_alignment INTEGER,
+              experimental_combination TEXT, experimental_states_json TEXT,
               created_at TEXT DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS signal_history (
               signal_id TEXT, date TEXT, session_offset INTEGER, close REAL,
@@ -125,7 +127,43 @@ class Database:
               ON control_members(control_code);
             CREATE INDEX IF NOT EXISTS idx_control_history_signal_type_offset
               ON control_history(signal_id,control_type,session_offset);
+            CREATE TABLE IF NOT EXISTS experimental_snapshots (
+              experimental_signal_id TEXT PRIMARY KEY, signal_date TEXT, code TEXT,
+              stock_name TEXT, strategy TEXT, initial_state TEXT, close REAL,
+              benchmark_close REAL, experimental_alignment INTEGER,
+              experimental_combination TEXT, core_signal INTEGER, core_state TEXT,
+              cross_signal TEXT, metrics_json TEXT, coverage REAL, fidelity TEXT,
+              setup_id TEXT, experiment_start_date TEXT, experimental_version TEXT,
+              schema_version TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS experimental_history (
+              experimental_signal_id TEXT, date TEXT, session_offset INTEGER,
+              close REAL, return_abs REAL, benchmark_relative_return REAL,
+              mfe REAL, mae REAL, state TEXT, failed INTEGER,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY(experimental_signal_id,date));
+            CREATE TABLE IF NOT EXISTS experimental_control_members (
+              control_group_id TEXT, experimental_signal_id TEXT, signal_date TEXT,
+              control_code TEXT, control_name TEXT, control_type TEXT,
+              control_rank INTEGER, match_score REAL, initial_close REAL,
+              selection_version TEXT, experimental_version TEXT,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY(control_group_id,control_code));
+            CREATE TABLE IF NOT EXISTS experimental_control_history (
+              control_group_id TEXT, experimental_signal_id TEXT, control_code TEXT,
+              control_type TEXT, date TEXT, session_offset INTEGER, close REAL,
+              return_abs REAL, benchmark_relative_return REAL, mfe REAL, mae REAL,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY(control_group_id,control_code,date));
+            CREATE INDEX IF NOT EXISTS idx_experimental_snapshot_code_date
+              ON experimental_snapshots(code,signal_date);
+            CREATE INDEX IF NOT EXISTS idx_experimental_history_signal_offset
+              ON experimental_history(experimental_signal_id,session_offset);
+            CREATE INDEX IF NOT EXISTS idx_experimental_controls_signal
+              ON experimental_control_members(experimental_signal_id);
             """)
+            self._ensure_columns(con, "fundamentals", {
+                "operating_profit_growth": "REAL",
+            })
             self._ensure_columns(con, "signal_snapshots", {
                 "trading_value_20d": "REAL",
                 "liquidity_level": "TEXT",
@@ -137,6 +175,12 @@ class Database:
                 "trading_value": "REAL",
                 "trading_value_ratio": "REAL",
                 "liquidity_level": "TEXT",
+            })
+            self._ensure_columns(con, "signal_snapshots", {
+                "experimental_version": "TEXT",
+                "experimental_alignment": "INTEGER",
+                "experimental_combination": "TEXT",
+                "experimental_states_json": "TEXT",
             })
             con.execute("PRAGMA optimize")
 
@@ -198,12 +242,13 @@ class Database:
 
     def save_fundamentals(self, rows: list[dict]):
         values = [(r["code"], r.get("filing_date"), r.get("eps_growth"),
-                   r.get("sales_growth"), r.get("roe"), r.get("bps"), r.get("source", "EDINET"),
+                   r.get("sales_growth"), r.get("operating_profit_growth"),
+                   r.get("roe"), r.get("bps"), r.get("source", "EDINET"),
                    r.get("freshness_note", "")) for r in rows]
         with self.connect() as con:
             con.executemany("""INSERT OR REPLACE INTO fundamentals
-            (code,filing_date,eps_growth,sales_growth,roe,bps,source,freshness_note)
-            VALUES(?,?,?,?,?,?,?,?)""", values)
+            (code,filing_date,eps_growth,sales_growth,operating_profit_growth,roe,bps,source,freshness_note)
+            VALUES(?,?,?,?,?,?,?,?,?)""", values)
         annual = [(r["code"], item.get("fiscal_year"), item.get("eps"),
                    item.get("filing_date") or r.get("filing_date"),
                    item.get("source") or r.get("source", "EDINET"))
@@ -438,6 +483,70 @@ class Database:
         _insert_dicts(self, "control_history", control_history or [],
                       "control_group_id,control_code,date")
 
+    def attach_core_experimental(self, signal_id: str, signal_date: str, analysis, cfg: dict):
+        states = {name: result.state for name, result in analysis.results.items()}
+        with self.connect() as con:
+            con.execute("""UPDATE signal_snapshots SET experimental_version=?,
+            experimental_alignment=?,experimental_combination=?,experimental_states_json=?
+            WHERE signal_id=? AND signal_date=? AND experimental_version IS NULL""",
+            (cfg["experimental_version"], analysis.alignment, analysis.combination,
+             json.dumps(states, ensure_ascii=False), signal_id, signal_date))
+
+    def save_experimental_snapshots(self, rows: list[dict]):
+        _insert_dicts(self, "experimental_snapshots", rows, "experimental_signal_id")
+
+    def save_experimental_history(self, rows: list[dict]):
+        _replace_dicts(self, "experimental_history", rows)
+
+    def save_experimental_control_members(self, rows: list[dict]):
+        _insert_dicts(self, "experimental_control_members", rows,
+                      "control_group_id,control_code")
+
+    def save_experimental_control_history(self, rows: list[dict]):
+        _replace_dicts(self, "experimental_control_history", rows)
+
+    def experimental_rows(self) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            snapshots = [dict(row) for row in con.execute(
+                "SELECT * FROM experimental_snapshots ORDER BY signal_date,code,strategy")]
+            history = [dict(row) for row in con.execute(
+                "SELECT * FROM experimental_history ORDER BY experimental_signal_id,date")]
+            controls = [dict(row) for row in con.execute(
+                "SELECT * FROM experimental_control_members ORDER BY signal_date,experimental_signal_id,control_type,control_rank")]
+            control_history = [dict(row) for row in con.execute(
+                "SELECT * FROM experimental_control_history ORDER BY experimental_signal_id,control_type,control_code,date")]
+        return snapshots, history, controls, control_history
+
+    def experimental_snapshots(self, code: str | None = None) -> list[dict]:
+        query, args = "SELECT * FROM experimental_snapshots", []
+        if code:
+            query += " WHERE code=?"
+            args.append(code)
+        query += " ORDER BY signal_date,experimental_signal_id"
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            return [dict(row) for row in con.execute(query, args)]
+
+    def experimental_controls(self, signal_id: str | None = None) -> list[dict]:
+        query, args = "SELECT * FROM experimental_control_members", []
+        if signal_id:
+            query += " WHERE experimental_signal_id=?"
+            args.append(signal_id)
+        query += " ORDER BY signal_date,experimental_signal_id,control_type,control_rank"
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            return [dict(row) for row in con.execute(query, args)]
+
+    def import_experimental_rows(self, snapshots: list[dict], history: list[dict],
+                                 controls: list[dict], control_history: list[dict]):
+        _insert_dicts(self, "experimental_snapshots", snapshots, "experimental_signal_id")
+        _insert_dicts(self, "experimental_history", history, "experimental_signal_id,date")
+        _insert_dicts(self, "experimental_control_members", controls,
+                      "control_group_id,control_code")
+        _insert_dicts(self, "experimental_control_history", control_history,
+                      "control_group_id,control_code,date")
+
 
 def _insert_dicts(db: Database, table: str, rows: list[dict], key: str):
     if not rows:
@@ -449,6 +558,18 @@ def _insert_dicts(db: Database, table: str, rows: list[dict], key: str):
     with db.connect() as con:
         con.executemany(f"INSERT OR IGNORE INTO {table} ({','.join(columns)}) VALUES({marks})",
                         [[row.get(c) for c in columns] for row in rows])
+
+
+def _replace_dicts(db: Database, table: str, rows: list[dict]):
+    if not rows:
+        return
+    with db.connect() as con:
+        allowed = {row[1] for row in con.execute(f"PRAGMA table_info({table})")}
+    columns = [column for column in rows[0] if column in allowed and column != "created_at"]
+    marks = ",".join("?" for _ in columns)
+    with db.connect() as con:
+        con.executemany(f"INSERT OR REPLACE INTO {table} ({','.join(columns)}) VALUES({marks})",
+                        [[row.get(column) for column in columns] for row in rows])
 
 
 def _finite(value):

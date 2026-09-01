@@ -3,6 +3,9 @@ strategy_version: "pivot-consensus-v1"
 threshold_version: "2026.08-v6-control"
 schema_version: "3.0"
 export_schema_version: "3.0"
+experimental_version: "2026.09-exp-v1"
+experimental_export_schema_version: "1.0"
+experiment_start_date: "2026-09-01"
 free_data:
   yahoo_batch_size: 80
   initial_history_period: "2y"
@@ -98,3 +101,28 @@ summary:
     preliminary: 30
     moderate: 100
     stronger: 300
+experimental:
+  turtle:
+    entry_days: 20
+    alternate_entry_days: 55
+    exit_days: 10
+    atr_days: 14
+    stop_atr_multiple: 2.0
+    watch_distance_pct: 2.0
+  earnings:
+    eps_growth_min_pct: 25
+    sales_growth_min_pct: 20
+    strong_coverage_min_pct: 50
+    anomaly_growth_pct: 400
+  sector:
+    leading_percentile: 90
+    strong_percentile: 80
+    stock_momentum_percentile: 80
+    weights:
+      return_1m: 0.2
+      return_3m: 0.3
+      return_6m: 0.5
+  controls:
+    selection_version: "experimental-control-v1"
+    random_count: 20
+    matched_count: 8

@@ -39,5 +39,5 @@ def make_demo_history(code: str, periods: int = 330) -> pd.DataFrame:
 def demo_fundamentals(code: str) -> dict:
     seed = sum(ord(c) for c in code)
     return {"eps_growth": float((seed * 7) % 70 - 5),
-            "sales_growth": float((seed * 3) % 40 - 3), "source": "DEMO"}
-
+            "sales_growth": float((seed * 3) % 40 - 3),
+            "operating_profit_growth": float((seed * 5) % 75 - 8), "source": "DEMO"}

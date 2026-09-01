@@ -13,6 +13,7 @@ from engine.config import ROOT, load_config
 from engine.controls import update_controls
 from engine.data import DataService
 from engine.database import Database
+from engine.experimental import analyze_experimental_universe, update_experimental_tracking
 from engine.models import Layer, SetupState
 from engine.ui_components import method_card, state_label
 from engine.secrets_store import read_secret, save_secret
@@ -74,7 +75,8 @@ def secret_key(name):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def run_scan(mode: str, scope: str, edinet_marker: str, logic_version: str):
+def run_scan(mode: str, scope: str, edinet_marker: str, logic_version: str,
+             experimental_version: str):
     # logic_versionをキャッシュキーに含め、モデルや判定変更後に旧オブジェクトを再利用しない。
     service = DataService(DB)
     result = service.scan(mode, scope=scope, edinet_key=secret_key("EDINET_API_KEY"))
@@ -98,7 +100,12 @@ def run_scan(mode: str, scope: str, edinet_marker: str, logic_version: str):
         analyses.append(item)
     security_meta = {row["code"]: row for row in DB.load_securities()}
     update_controls(DB, analyses, prepared, benchmark, security_meta, CFG)
-    return rank(analyses), prepared, errors, data_status
+    ranked = rank(analyses)
+    experimental = analyze_experimental_universe(
+        ranked, prepared, fundamentals, security_meta, benchmark, CFG)
+    update_experimental_tracking(
+        DB, experimental, ranked, prepared, benchmark, security_meta, CFG)
+    return ranked, prepared, errors, data_status, experimental
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -148,7 +155,8 @@ try:
     edinet_marker = "configured" if secret_key("EDINET_API_KEY") else "none"
     spinner = "JPX銘柄一覧とYahoo日足を更新しています。初回は数分かかる場合があります…" if mode == "無料実用" else "銘柄を分析しています…"
     with st.spinner(spinner):
-        analyses, frames, fetch_errors, data_status = run_scan(mode, scope, edinet_marker, CFG["logic_version"])
+        analyses, frames, fetch_errors, data_status, experimental = run_scan(
+            mode, scope, edinet_marker, CFG["logic_version"], CFG["experimental_version"])
 except Exception as exc:
     st.error(f"分析を開始できませんでした: {exc}")
     st.info("デモを選ぶと、認証や通信なしで全機能を確認できます。")
@@ -194,6 +202,7 @@ for a in filtered:
                  "Mom順位": _fmt(a.metrics.get("momentum_percentile"), 0),
                  "流動性": f"{a.metrics.get('liquidity_level', 'N/A')} / "
                          f"{_yen_short(a.metrics.get('trading_value_20d'))}",
+                 "実験": f"{experimental[a.code].alignment}/3",
                  "Minervini": state_label(a.strategies["Minervini"].state),
                  "Qulla": state_label(a.strategies["Qullamaggie"].state),
                  "CAN": state_label(a.strategies["CAN SLIM"].state),
@@ -244,6 +253,12 @@ l4.metric("Trading Value Ratio", f"{ratio:.1f}x" if ratio is not None else "N/A"
 st.caption(f"GOOD基準：{_yen_short(CFG['liquidity']['levels']['good'])} / 日。銘柄の強さとは別軸の売買執行評価です。")
 if liquidity in ("LOW", "VERY LOW"):
     st.warning("流動性が低いため、スリッページ・価格急変・損切り時の不利約定に注意してください。")
+
+st.subheader("Experimental Strategies")
+exp = experimental[a.code]
+st.caption(f"Coreとは独立したObserverです。ランキング順位には影響しません。Experimental Alignment {exp.alignment}/3")
+for name, result in exp.results.items():
+    st.write(f"**{name}** — {result.state}（Coverage {result.coverage:.0f}% / {result.fidelity}）")
 
 st.subheader("売買シナリオ")
 plan = getattr(a, "trade_plan", None)

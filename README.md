@@ -54,6 +54,22 @@ ChatGPTは件数と期間を確認後、目的に応じて `signals.csv`、`perf
 条件の近い非Signal銘柄に対するExcess Returnも比較できます。画面下部から直接ダウンロードできます。
 詳細なschemaと判定仕様は [`docs/VALIDATION.md`](docs/VALIDATION.md) を参照してください。
 
+### Experimental Strategies（並走検証）
+
+Coreとは独立したResearch Layerとして、Turtle / Donchian Breakout、Earnings Momentum、
+Sector Relative Strengthの3手法を `2026-09-01` から記録します。ランキング一覧では
+`Experimental x/3` だけを補助表示し、詳細画面で各手法のStateと根拠を確認できます。
+Experimentalの結果はCore Consensus、Confluence、BREAKOUT判定、順位、Confidence、Coverageへ
+一切加算しません。
+
+Experimental Validationの入口は次の固定URLです。
+
+`https://takina6-source.github.io/japan-swing-lens/experimental/index.json`
+
+Signal、History、1/5/10/20営業日Performance、Random / Matched Control、Version別Summaryを
+`/experimental/` 配下へ出力します。仕様、判定条件、無料データの制約は
+[`docs/EXPERIMENTAL.md`](docs/EXPERIMENTAL.md) を参照してください。
+
 ## 起動方法
 
 Finderで `start.command` をダブルクリックします。初回は環境準備と株価取得に数分かかることがあります。

@@ -21,6 +21,8 @@ from engine.data.jpx import select_scope
 from engine.data.service import DataService
 from engine.data.yahoo import YahooProvider
 from engine.database import Database
+from engine.experimental import (analyze_experimental_universe, export_experimental,
+                                 seed_experimental, update_experimental_tracking)
 from engine.models import SetupState
 from engine.validation import export_validation, seed_validation
 
@@ -59,6 +61,7 @@ def cached_scan(db: Database, scope: str):
     fundamentals = {code: {
         "eps_growth": funds.get(code, {}).get("eps_growth"),
         "sales_growth": funds.get(code, {}).get("sales_growth"),
+        "operating_profit_growth": funds.get(code, {}).get("operating_profit_growth"),
         "fundamental_source": funds.get(code, {}).get("source", "N/A"),
         "fundamental_date": funds.get(code, {}).get("filing_date"),
         "annual_eps": annual.get(code, []),
@@ -96,6 +99,7 @@ def export(refresh: bool, scope: str):
     cfg = load_config()
     db = Database(ROOT / "data" / "momentum.db")
     seed_validation(db, os.getenv("VALIDATION_SEED_URL"))
+    seed_experimental(db, os.getenv("EXPERIMENTAL_SEED_URL"))
     service = DataService(db)
     meta = {row["code"]: row for row in db.load_securities()}
     if refresh:
@@ -123,6 +127,9 @@ def export(refresh: bool, scope: str):
         db.save_analysis(item, cfg["logic_version"])
         db.save_signal_tracking(item, prepared[item.code], benchmark, cfg)
     update_controls(db, analyses, prepared, benchmark, meta, cfg)
+    experimental = analyze_experimental_universe(
+        analyses, prepared, fundamentals, meta, benchmark, cfg)
+    update_experimental_tracking(db, experimental, analyses, prepared, benchmark, meta, cfg)
     OUT.mkdir(parents=True, exist_ok=True)
     detail_dir = OUT / "details"
     detail_dir.mkdir(exist_ok=True)
@@ -156,6 +163,7 @@ def export(refresh: bool, scope: str):
             "trade_plan": plan,
             "methods": {name: result.state.value for name, result in item.strategies.items()},
             "summary": summary_text(item),
+            "experimental": experimental[item.code].to_dict(),
         }
         candidates.append(candidate)
         detail = {
@@ -200,6 +208,11 @@ def export(refresh: bool, scope: str):
     }
     validation = export_validation(db, ROOT / "public" / "dashboard" / "validation", cfg)
     snapshot["validation"] = validation
+    experiment = export_experimental(
+        db, ROOT / "public" / "dashboard" / "experimental", cfg)
+    snapshot["experimental_validation"] = experiment
+    snapshot["experimental_version"] = cfg["experimental_version"]
+    snapshot["experiment_start_date"] = cfg["experiment_start_date"]
     (OUT / "snapshot.json").write_text(
         json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
     print(f"exported {len(candidates)} stocks as of {snapshot['as_of']}")

@@ -89,6 +89,7 @@ def parse_edinet_csv(content: bytes, code: str, filing_date: str) -> dict | None
 
     sales, prior_sales = pair([r"NetSales", r"Revenue.*Summary", r"売上高"])
     eps, prior_eps = pair([r"BasicEarningsLossPerShare", r"EarningsPerShare", r"1株当たり.*利益"])
+    operating, prior_operating = pair([r"OperatingIncome", r"OperatingProfit", r"営業利益"])
     roe, _ = pair([r"RateOfReturnOnEquity", r"自己資本利益率"])
     bps, _ = pair([r"NetAssetsPerShare", r"1株当たり純資産"])
     if sales is None and eps is None: return None
@@ -102,6 +103,7 @@ def parse_edinet_csv(content: bytes, code: str, filing_date: str) -> dict | None
                            "filing_date": filing_date, "source": "金融庁 EDINET API v2"})
     return {"code": code, "filing_date": filing_date,
             "eps_growth": _growth(prior_eps, eps), "sales_growth": _growth(prior_sales, sales),
+            "operating_profit_growth": _growth(prior_operating, operating),
             "roe": roe, "bps": bps, "source": "金融庁 EDINET API v2",
             "annual_eps": annual_eps,
             "freshness_note": "有価証券報告書等。決算短信より遅い場合があります"}

@@ -1,5 +1,9 @@
 # Swing Lens Observer / Validation仕様
 
+> この文書は既存Core Validationの仕様です。Coreと分離したTurtle、Earnings Momentum、
+> Sector Relative Strengthの並走検証は [`EXPERIMENTAL.md`](EXPERIMENTAL.md) を参照してください。
+> Experimental列は導入日以降のCore Snapshotへ観測値を付加するだけで、Core判定値を変更しません。
+
 ## 目的
 
 Swing Lensは、100点満点の予測器ではなく、5つのMomentum／Breakout系Strategyと
@@ -91,6 +95,9 @@ Historyは0、1、5、10、20営業日を含む毎回の観測を保存し、Con
 各Strategy State、Return、Benchmark Relative Return、MFE、MAE、Failed Breakout、1R/2R/Stop到達を記録する。
 
 Versionは `logic_version`、`strategy_version`、`threshold_version`、`schema_version` の4種類を保存する。
+Experimental導入後の新規Core Snapshotには、比較用として `experimental_version`、
+`experimental_alignment`、`experimental_combination`、3手法のStateも同時保存する。
+導入前Snapshotは遡及補完しない。既存のCore列、Signal ID、History、Control membershipは更新しない。
 
 ## Control Group / Baseline
 

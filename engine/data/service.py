@@ -101,6 +101,7 @@ class DataService:
             annual_cache = self.db.load_annual_eps(list(frames))
         fundamentals = {c: {"eps_growth": fund_cache.get(c, {}).get("eps_growth"),
                             "sales_growth": fund_cache.get(c, {}).get("sales_growth"),
+                            "operating_profit_growth": fund_cache.get(c, {}).get("operating_profit_growth"),
                             "annual_eps": annual_cache.get(c, []),
                             "annual_eps_source": (annual_cache.get(c) or [{}])[-1].get("source", "N/A"),
                             "fundamental_source": fund_cache.get(c, {}).get("source", "N/A"),
