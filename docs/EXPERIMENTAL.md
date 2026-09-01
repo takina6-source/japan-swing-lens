@@ -20,7 +20,7 @@ Experimental Versionとして保存する。
 
 - 判定日Tの終値がT-1までの20営業日高値または55営業日高値を初めて上抜けば`BREAKOUT`。
 - 終値が20日高値の2%以内であれば`BREAKOUT WATCH`。
-- 過去に上抜け済みで10営業日安値を維持していれば`TRENDING`、割れば`FAILED`。
+- 過去に上抜け済みで、そのBreakout Pivot以上を維持していれば`TRENDING`、Pivotを割れば`FAILED`。
 - 14日ATRをTurtleのN相当として保存し、ATR%、Breakout Price、Stop Distanceを記録する。
 - 参考Stopは`現在値 - 2 ATR`。Volumeは記録するが必須条件にしない。
 - 50MA、200MA、50MA > 200MAはTrend Stateとして保存する。CoreのTrend条件へは流用しない。
