@@ -1,6 +1,8 @@
 name: Update Swing Lens
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: "0 10 * * 1-5" # 平日19:00 JST
