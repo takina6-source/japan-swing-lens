@@ -49,6 +49,25 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
     performance = _performance_rows(
         signals, history, control_performance, cfg["tracking"]["horizons"])
     summary_rows = _summary_rows(performance, cfg)
+    diagnostic_raw = db.load_fundamental_diagnostics()
+    names = {row["code"]: row.get("name", "") for row in db.load_securities()}
+    diagnostics = []
+    for row in diagnostic_raw:
+        diagnostics.append({
+            "code": row["code"], "name": names.get(row["code"], ""),
+            "status": row.get("status"), "fidelity": row.get("fidelity"),
+            "years_available": row.get("years_available"),
+            "initial_years": row.get("initial_years"),
+            "source_summary": row.get("source_summary"),
+            "fallback_used": row.get("fallback_used"),
+            "reason_code": row.get("reason_code"),
+            "reason_codes": ",".join(row.get("reason_codes", [])),
+            "attempted_sources": ",".join(row.get("attempted_sources", [])),
+            "diagnosed_at": row.get("diagnosed_at"),
+            "logic_version": row.get("logic_version"),
+        })
+    _write_csv(output / "fundamental_diagnostics.csv", diagnostics)
+    _write_json(output / "fundamental_diagnostics.json", diagnostics)
     for name, rows in (("signals", signals), ("signal_history", history),
                        ("performance", performance), ("controls", controls),
                        ("control_performance", control_performance)):
@@ -77,7 +96,24 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
         "signals.json", "signal_history.json", "performance.json",
         "controls.csv", "controls.json", "control_performance.csv",
         "control_performance.json", "summary.csv", "summary.json",
+        "fundamental_diagnostics.csv", "fundamental_diagnostics.json",
     ]
+    minimum_years = int(cfg["free_data"]["annual_eps"]["minimum_years"])
+    before_complete = sum(int(row.get("initial_years") or 0) >= minimum_years
+                          for row in diagnostic_raw)
+    after_complete = sum(int(row.get("years_available") or 0) >= minimum_years
+                         for row in diagnostic_raw)
+    unresolved = [row for row in diagnostic_raw
+                  if int(row.get("years_available") or 0) < minimum_years]
+    yahoo_fixable = [row for row in unresolved
+                     if "YAHOO" not in row.get("attempted_sources", [])]
+    still_unresolved = [row for row in unresolved
+                        if "YAHOO" in row.get("attempted_sources", [])]
+    source_usage = defaultdict(int)
+    for row in diagnostic_raw:
+        for part in str(row.get("source_summary") or "").split(" + "):
+            if part and part != "N/A":
+                source_usage[part.split()[0]] += 1
     index = {
         "generated_at": generated,
         "schema_version": cfg["export_schema_version"],
@@ -91,6 +127,22 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
         "control_group_count": len({row["control_group_id"] for row in controls}),
         "control_performance_count": len(control_performance),
         "summary_count": len(summary_rows),
+        "fundamental_diagnostics_count": len(diagnostics),
+        "annual_eps_coverage": {
+            "before_complete": before_complete,
+            "after_complete": after_complete,
+            "improved": after_complete - before_complete,
+            "total": len(diagnostic_raw),
+            "total_na": len(unresolved),
+            "edinet_fixable": sum(any("EDINET" in reason for reason in row.get("reason_codes", []))
+                                  for row in unresolved),
+            "jquants_fixable": sum(any("JQUANTS" in reason for reason in row.get("reason_codes", []))
+                                   for row in unresolved),
+            "yahoo_fixable": len(yahoo_fixable),
+            "still_unresolved": len(still_unresolved),
+            "fallback_used": sum(bool(row.get("fallback_used")) for row in diagnostic_raw),
+            "source_usage": dict(source_usage),
+        },
         "observation_start": min(dates + observation_dates) if dates or observation_dates else None,
         "observation_end": max(dates + observation_dates) if dates or observation_dates else None,
         "available_files": available,

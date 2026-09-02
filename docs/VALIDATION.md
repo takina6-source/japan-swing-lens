@@ -14,9 +14,16 @@ Immutable Snapshotとして残し、その後の価格・Consensus・各Strategy
 
 年次EPSは次の順で無料取得する。
 
-1. EDINET API v2で取得できた有価証券報告書等の年次EPS
-2. 不足銘柄をYahoo Financeの年次損益計算書で自動補完（1回30銘柄、強い銘柄優先）
-3. 3期未満はN/Aとし、FAILへ変換しない
+1. EDINET標準Basic EPSタグ（STRICT候補）
+2. EDINET企業拡張タグ
+3. EDINETの年次利益÷期中平均株式数による派生値
+4. J-Quants通期財務（キー設定時のみ）
+5. Yahoo Finance年次損益計算書（Basic EPS優先、非公式）
+
+不足銘柄は1回30銘柄まで強い銘柄から補完し、日次の全件再取得はしない。年度別に異なる
+ソースを組み合わせられるが、同一年度は上記の優先順位で1値だけを採用する。3期未満は
+理由コード付きN/Aとし、FAILへ変換しない。診断結果は
+`validation/fundamental_diagnostics.csv` / `.json` に書き出す。
 
 判定は、William O'Neil / IBDの「過去3年の利益成長率25%以上」を中心にする。
 4期以上あり直近3回の前年比が各25%以上ならSTRICT、3期以上で黒字継続・減益なし・
@@ -30,6 +37,12 @@ BORDERLINEとし、赤字継続やCAGR不足はFAILとする。
 
 Yahooの財務値は非公式経路のため、取得できてもPRACTICALでありSTRICTにはしない。
 分割後の連続性は財務諸表側で再表示されたEPSを優先するが、全銘柄で完全保証はできない。
+
+取得状態は `COMPLETE / PARTIAL / INSUFFICIENT / FAILED`、データ忠実度は
+`STRICT / PRACTICAL / LOW_CONFIDENCE / PARTIAL / N/A` で保存する。通信・認証・タグ欠損・
+履歴不足・値の矛盾は固定Reason Codeとして診断DBへ保存し、既存Signal Snapshotは変更しない。
+Historical Signalを再評価する場合は、Signal基準日より後の公表日を持つ財務値を除外する。
+公表日を取得できないYahoo値も、基準日より後の会計年度は採用しない。
 
 ## Strategy別Pivot
 

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import logging
+import os
 import pandas as pd
 from .demo import NAMES, demo_fundamentals, make_demo_history
 from .yahoo import YahooProvider
 from .jpx import JPXUniverseProvider, select_scope
 from ..database import Database
 from ..config import load_config
+from ..annual_eps import (annual_eps_profile, diagnostic_row, resolve_with_fallback,
+                          source_family)
 
 log = logging.getLogger(__name__)
 
@@ -20,9 +23,9 @@ class DataService:
 
     def scan(self, mode: str = "デモ", api_key: str | None = None,
              scope: str = "主要500+Growth", edinet_key: str | None = None,
-             progress=None):
+             progress=None, jquants_key: str | None = None):
         if mode == "無料実用":
-            return self._free_scan(scope, edinet_key, progress)
+            return self._free_scan(scope, edinet_key, progress, jquants_key)
         universe = self.universe(mode)
         raw, fundamentals, sources, errors = {}, {}, {}, []
         for code in universe:
@@ -32,7 +35,8 @@ class DataService:
                 errors.append(f"{code}: {exc}")
         return universe, raw, fundamentals, sources, errors
 
-    def _free_scan(self, scope: str, edinet_key: str | None, progress=None):
+    def _free_scan(self, scope: str, edinet_key: str | None, progress=None,
+                   jquants_key: str | None = None):
         errors = []
         cached_master = self.db.load_securities()
         try:
@@ -85,25 +89,68 @@ class DataService:
             except Exception as exc:
                 errors.append(f"EDINET: 財務更新を継続できませんでした（{exc}）")
                 self.db.log_fetch("金融庁 EDINET API v2", "直近提出書類", False, str(exc))
+        cfg = load_config()
+        annual_cfg = cfg["free_data"]["annual_eps"]
+        minimum = int(annual_cfg["minimum_years"])
+        preferred = int(annual_cfg["preferred_years"])
+        conflict_pct = float(annual_cfg["conflict_pct"])
         annual_cache = self.db.load_annual_eps(list(frames))
-        missing_annual = [code for code in frames if len(annual_cache.get(code, [])) < 3]
+        initial_profiles = {code: annual_eps_profile(annual_cache.get(code, []), minimum,
+                                                     preferred, conflict_pct)
+                            for code in frames}
+        missing_annual = [code for code, profile in initial_profiles.items()
+                          if profile["years_available"] < minimum]
+        attempts: dict[str, list[str]] = {code: [] for code in frames}
+        reasons: dict[str, list[str]] = {code: [] for code in frames}
+        jq = None
+        jq_key = jquants_key or os.getenv("JQUANTS_API_KEY")
+        for code in missing_annual:
+            existing = annual_cache.get(code, [])
+            edinet_years = len({r.get("fiscal_year") for r in existing
+                                if source_family(r.get("source")).startswith("EDINET")})
+            reasons[code].append("EDINET_NOT_FOUND" if edinet_years == 0
+                                 else "EDINET_INSUFFICIENT_YEARS")
+            if annual_cfg.get("enable_jquants_fallback", True) and not jq_key:
+                reasons[code].append("JQUANTS_NOT_CONFIGURED")
         if missing_annual:
-            limit = int(load_config()["free_data"]["annual_eps_updates_per_run"])
+            limit = int(cfg["free_data"]["annual_eps_updates_per_run"])
             # 強い銘柄から順に補完し、毎回少数ずつ自動でCoverageを広げる。
             missing_annual.sort(key=lambda code: _momentum(frames[code]), reverse=True)
             for code in missing_annual[:limit]:
-                try:
-                    rows = yahoo.annual_eps(code)
-                    if rows:
-                        self.db.save_annual_eps(code, rows, yahoo.name)
-                except Exception as exc:
-                    errors.append(f"{code}: 年次EPS {exc}")
+                fetchers = []
+                if annual_cfg.get("enable_jquants_fallback", True) and jq_key:
+                    def fetch_jquants(target=code):
+                        nonlocal jq
+                        if jq is None:
+                            from .jquants import JQuantsProvider
+                            jq = JQuantsProvider(jq_key)
+                        return jq.annual_eps(target)
+                    fetchers.append(("JQUANTS", fetch_jquants))
+                if annual_cfg.get("enable_yahoo_fallback", True):
+                    fetchers.append(("YAHOO", lambda target=code: yahoo.annual_eps(target)))
+                resolved = resolve_with_fallback(
+                    annual_cache.get(code, []), fetchers, minimum, preferred,
+                    conflict_pct, reasons[code])
+                attempts[code] = resolved["attempted_sources"]
+                reasons[code] = resolved["reason_codes"]
+                if resolved["added_records"]:
+                    self.db.save_annual_eps(code, resolved["added_records"], "Annual EPS fallback")
+                errors.extend(f"{code}: 年次EPS {message}" for message in resolved["errors"])
             annual_cache = self.db.load_annual_eps(list(frames))
+        profiles = {code: annual_eps_profile(annual_cache.get(code, []), minimum,
+                                             preferred, conflict_pct, reasons[code])
+                    for code in frames}
+        if annual_cfg.get("diagnostics", True):
+            for code, profile in profiles.items():
+                row = diagnostic_row(code, profile,
+                                     initial_profiles[code]["years_available"], attempts[code])
+                self.db.save_fundamental_diagnostic(row, cfg["logic_version"])
         fundamentals = {c: {"eps_growth": fund_cache.get(c, {}).get("eps_growth"),
                             "sales_growth": fund_cache.get(c, {}).get("sales_growth"),
                             "operating_profit_growth": fund_cache.get(c, {}).get("operating_profit_growth"),
-                            "annual_eps": annual_cache.get(c, []),
-                            "annual_eps_source": (annual_cache.get(c) or [{}])[-1].get("source", "N/A"),
+                            "annual_eps": profiles[c]["records"],
+                            "annual_eps_source": profiles[c]["source_summary"],
+                            "annual_eps_profile": profiles[c],
                             "fundamental_source": fund_cache.get(c, {}).get("source", "N/A"),
                             "fundamental_date": fund_cache.get(c, {}).get("filing_date")}
                         for c in frames}

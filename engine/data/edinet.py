@@ -29,7 +29,8 @@ class EdinetProvider:
                 for row in response.json().get("results", []):
                     description = str(row.get("docDescription") or "")
                     sec_code = str(row.get("secCode") or "")[:4]
-                    if sec_code.isdigit() and re.search(r"有価証券報告書|半期報告書|四半期報告書", description):
+                    # Annual Earningsへ半期・四半期のEPSを混ぜない。
+                    if sec_code.isdigit() and re.search(r"有価証券報告書", description):
                         filings.append((sec_code, row.get("docID"), str(row.get("submitDateTime", ""))[:10]))
             except Exception as exc:
                 errors.append(f"{target}: 書類一覧 {exc}")
@@ -77,10 +78,16 @@ def parse_edinet_csv(content: bytes, code: str, filing_date: str) -> dict | None
     text = df[element_col].fillna("").astype(str)
     if label_col: text = text + " " + df[label_col].fillna("").astype(str)
 
-    def pair(patterns):
+    def pair(patterns, exclude=()):
         mask = pd.Series(False, index=df.index)
         for pattern in patterns: mask |= text.str.contains(pattern, case=False, regex=True)
+        for pattern in exclude: mask &= ~text.str.contains(pattern, case=False, regex=True)
         subset = df.loc[mask, [context_col, value_col]].copy()
+        contexts = subset[context_col].astype(str)
+        subset = subset.loc[
+            contexts.str.contains("Current|Prior|当期|前期", case=False, regex=True)
+            & ~contexts.str.contains("Quarter|Q1|Q2|Q3|Interim|半期|四半期", case=False, regex=True)
+        ]
         subset["number"] = subset[value_col].map(_number)
         subset = subset.dropna(subset=["number"])
         current = subset.loc[subset[context_col].astype(str).str.contains("Current|当期", case=False), "number"]
@@ -88,7 +95,24 @@ def parse_edinet_csv(content: bytes, code: str, filing_date: str) -> dict | None
         return (current.iloc[0] if len(current) else None, prior.iloc[0] if len(prior) else None)
 
     sales, prior_sales = pair([r"NetSales", r"Revenue.*Summary", r"売上高"])
-    eps, prior_eps = pair([r"BasicEarningsLossPerShare", r"EarningsPerShare", r"1株当たり.*利益"])
+    eps_source, eps_fidelity, eps_concept = "EDINET_STANDARD", "STRICT", "Basic EPS"
+    eps, prior_eps = pair(
+        [r"BasicEarningsLossPerShare", r"BasicEarningsPerShare", r"基本的1株当たり.*利益"],
+        [r"Diluted", r"希薄化"])
+    if eps is None and prior_eps is None:
+        eps_source, eps_fidelity, eps_concept = "EDINET_EXTENSION", "PRACTICAL", "Extension EPS"
+        eps, prior_eps = pair(
+            [r"EarningsPerShare", r"1株当たり(?:当期)?(?:純)?利益"],
+            [r"Diluted", r"希薄化", r"配当", r"純資産"])
+    if eps is None and prior_eps is None:
+        # 最終手段。年次利益÷期中平均株式数でEPSを再構成する。
+        profit, prior_profit = pair([r"ProfitLoss", r"NetIncome", r"当期純利益"])
+        shares, prior_shares = pair([r"WeightedAverage.*Shares", r"期中平均.*株式数"])
+        eps = profit / shares if profit is not None and shares not in (None, 0) else None
+        prior_eps = (prior_profit / prior_shares
+                     if prior_profit is not None and prior_shares not in (None, 0) else None)
+        if eps is not None or prior_eps is not None:
+            eps_source, eps_fidelity, eps_concept = "EDINET_DERIVED", "PRACTICAL", "Profit / weighted shares"
     operating, prior_operating = pair([r"OperatingIncome", r"OperatingProfit", r"営業利益"])
     roe, _ = pair([r"RateOfReturnOnEquity", r"自己資本利益率"])
     bps, _ = pair([r"NetAssetsPerShare", r"1株当たり純資産"])
@@ -97,10 +121,18 @@ def parse_edinet_csv(content: bytes, code: str, filing_date: str) -> dict | None
     annual_eps = []
     if prior_eps is not None:
         annual_eps.append({"fiscal_year": str(fiscal_year - 1), "eps": prior_eps,
-                           "filing_date": filing_date, "source": "金融庁 EDINET API v2"})
+                           "filing_date": filing_date, "published_date": filing_date,
+                           "source": eps_source, "fidelity": eps_fidelity,
+                           "period_type": "FY", "concept": eps_concept,
+                           "priority": {"EDINET_STANDARD": 10, "EDINET_EXTENSION": 20,
+                                        "EDINET_DERIVED": 30}[eps_source]})
     if eps is not None:
         annual_eps.append({"fiscal_year": str(fiscal_year), "eps": eps,
-                           "filing_date": filing_date, "source": "金融庁 EDINET API v2"})
+                           "filing_date": filing_date, "published_date": filing_date,
+                           "source": eps_source, "fidelity": eps_fidelity,
+                           "period_type": "FY", "concept": eps_concept,
+                           "priority": {"EDINET_STANDARD": 10, "EDINET_EXTENSION": 20,
+                                        "EDINET_DERIVED": 30}[eps_source]})
     return {"code": code, "filing_date": filing_date,
             "eps_growth": _growth(prior_eps, eps), "sales_growth": _growth(prior_sales, sales),
             "operating_profit_growth": _growth(prior_operating, operating),

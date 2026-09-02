@@ -74,6 +74,13 @@ class Database:
               code TEXT, fiscal_year TEXT, eps REAL, filing_date TEXT, source TEXT,
               updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
               PRIMARY KEY(code,fiscal_year,source));
+            CREATE TABLE IF NOT EXISTS fundamental_data_diagnostics (
+              code TEXT PRIMARY KEY, status TEXT, fidelity TEXT,
+              years_available INTEGER, initial_years INTEGER, source_summary TEXT,
+              fallback_used INTEGER, reason_code TEXT, reason_codes_json TEXT,
+              attempted_sources_json TEXT, details_json TEXT,
+              diagnosed_at TEXT, logic_version TEXT,
+              updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS setup_registry (
               code TEXT, strategy TEXT, setup_id TEXT, setup_start_date TEXT,
               pivot_price REAL, pivot_type TEXT, pivot_basis TEXT, pivot_fidelity TEXT,
@@ -171,6 +178,16 @@ class Database:
                 "current_trading_value": "REAL",
                 "trading_value_ratio": "REAL",
             })
+            self._ensure_columns(con, "annual_eps", {
+                "fidelity": "TEXT",
+                "published_date": "TEXT",
+                "retrieved_at": "TEXT",
+                "status": "TEXT",
+                "period_type": "TEXT",
+                "concept": "TEXT",
+                "anomaly": "TEXT",
+                "priority": "INTEGER",
+            })
             self._ensure_columns(con, "signal_history", {
                 "trading_value": "REAL",
                 "trading_value_ratio": "REAL",
@@ -249,15 +266,13 @@ class Database:
             con.executemany("""INSERT OR REPLACE INTO fundamentals
             (code,filing_date,eps_growth,sales_growth,operating_profit_growth,roe,bps,source,freshness_note)
             VALUES(?,?,?,?,?,?,?,?,?)""", values)
-        annual = [(r["code"], item.get("fiscal_year"), item.get("eps"),
-                   item.get("filing_date") or r.get("filing_date"),
-                   item.get("source") or r.get("source", "EDINET"))
-                  for r in rows for item in (r.get("annual_eps") or [])
-                  if item.get("fiscal_year") and item.get("eps") is not None]
-        if annual:
-            with self.connect() as con:
-                con.executemany("""INSERT OR REPLACE INTO annual_eps
-                (code,fiscal_year,eps,filing_date,source) VALUES(?,?,?,?,?)""", annual)
+        for result in rows:
+            annual = []
+            for item in result.get("annual_eps") or []:
+                enriched = dict(item)
+                enriched["filing_date"] = item.get("filing_date") or result.get("filing_date")
+                annual.append(enriched)
+            self.save_annual_eps(result["code"], annual, result.get("source", "EDINET"))
 
     def load_fundamentals(self, codes: list[str]) -> dict[str, dict]:
         if not codes: return {}
@@ -272,12 +287,17 @@ class Database:
         return result
 
     def save_annual_eps(self, code: str, rows: list[dict], source: str):
-        values = [(code, str(r["fiscal_year"]), float(r["eps"]), r.get("filing_date"), source)
+        values = [(code, str(r["fiscal_year"]), float(r["eps"]), r.get("filing_date"),
+                   r.get("source") or source, r.get("fidelity"),
+                   r.get("published_date") or r.get("filing_date"), r.get("retrieved_at"),
+                   r.get("status", "AVAILABLE"), r.get("period_type", "FY"),
+                   r.get("concept"), r.get("anomaly"), r.get("priority"))
                   for r in rows if r.get("fiscal_year") and r.get("eps") is not None]
         if values:
             with self.connect() as con:
                 con.executemany("""INSERT OR REPLACE INTO annual_eps
-                (code,fiscal_year,eps,filing_date,source) VALUES(?,?,?,?,?)""", values)
+                (code,fiscal_year,eps,filing_date,source,fidelity,published_date,retrieved_at,
+                 status,period_type,concept,anomaly,priority) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", values)
 
     def load_annual_eps(self, codes: list[str]) -> dict[str, list[dict]]:
         result: dict[str, list[dict]] = {code: [] for code in codes}
@@ -288,11 +308,47 @@ class Database:
             for start in range(0, len(codes), 800):
                 part = codes[start:start + 800]
                 marks = ",".join("?" for _ in part)
-                rows = con.execute(f"""SELECT code,fiscal_year,eps,filing_date,source
+                rows = con.execute(f"""SELECT code,fiscal_year,eps,filing_date,source,
+                fidelity,published_date,retrieved_at,status,period_type,concept,anomaly,priority,updated_at
                 FROM annual_eps WHERE code IN ({marks}) ORDER BY fiscal_year""", part)
                 for row in rows:
                     result.setdefault(row["code"], []).append(dict(row))
         return result
+
+    def save_fundamental_diagnostic(self, row: dict, logic_version: str):
+        with self.connect() as con:
+            con.execute("""INSERT OR REPLACE INTO fundamental_data_diagnostics
+            (code,status,fidelity,years_available,initial_years,source_summary,
+             fallback_used,reason_code,reason_codes_json,attempted_sources_json,
+             details_json,diagnosed_at,logic_version)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+                row["code"], row["status"], row["fidelity"], row["years_available"],
+                row.get("initial_years", 0), row.get("source_summary", "N/A"),
+                int(row.get("fallback_used", False)), row.get("reason_code"),
+                json.dumps(row.get("reason_codes", []), ensure_ascii=False),
+                json.dumps(row.get("attempted_sources", []), ensure_ascii=False),
+                json.dumps(row.get("details", {}), ensure_ascii=False),
+                row.get("diagnosed_at"), logic_version))
+
+    def load_fundamental_diagnostics(self, codes: list[str] | None = None) -> list[dict]:
+        query = "SELECT * FROM fundamental_data_diagnostics"
+        args: list[str] = []
+        if codes:
+            query += f" WHERE code IN ({','.join('?' for _ in codes)})"
+            args.extend(codes)
+        query += " ORDER BY code"
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            rows = [dict(row) for row in con.execute(query, args)]
+        for row in rows:
+            for source, target in (("reason_codes_json", "reason_codes"),
+                                   ("attempted_sources_json", "attempted_sources"),
+                                   ("details_json", "details")):
+                try:
+                    row[target] = json.loads(row.get(source) or ("{}" if target == "details" else "[]"))
+                except json.JSONDecodeError:
+                    row[target] = {} if target == "details" else []
+        return rows
 
     def load_setup_registry(self, code: str) -> dict[str, dict]:
         with self.connect() as con:

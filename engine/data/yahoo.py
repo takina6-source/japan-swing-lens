@@ -90,7 +90,7 @@ class YahooProvider:
         statement = yf.Ticker(f"{code}.T").get_income_stmt(freq="yearly")
         if statement is None or statement.empty:
             return []
-        row_name = next((name for name in ("Diluted EPS", "Basic EPS", "DilutedEPS", "BasicEPS")
+        row_name = next((name for name in ("Basic EPS", "BasicEPS", "Diluted EPS", "DilutedEPS")
                          if name in statement.index), None)
         if row_name is None:
             return []
@@ -99,7 +99,10 @@ class YahooProvider:
             try:
                 if pd.notna(value):
                     rows.append({"fiscal_year": str(pd.Timestamp(column).year),
-                                 "eps": float(value), "filing_date": None})
+                                 "eps": float(value), "filing_date": None,
+                                 "source": self.name, "fidelity": "PRACTICAL",
+                                 "period_type": "FY", "concept": row_name,
+                                 "priority": 50})
             except (TypeError, ValueError):
                 continue
         return sorted(rows, key=lambda row: row["fiscal_year"])

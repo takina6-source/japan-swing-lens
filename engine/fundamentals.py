@@ -15,10 +15,15 @@ def annual_earnings_condition(metrics: dict, cfg: dict) -> ConditionResult:
     c = cfg["oneil"]["annual_earnings"]
     raw = metrics.get("annual_eps") or []
     values = []
+    as_of = str(metrics.get("as_of") or "")[:10]
     for row in raw:
         try:
             eps = float(row["eps"])
             year = str(row.get("fiscal_year") or row.get("year"))
+            published = str(row.get("published_date") or row.get("filing_date") or "")[:10]
+            if as_of and ((published and published > as_of)
+                          or (not published and year[:4] > as_of[:4])):
+                continue
             if math.isfinite(eps):
                 values.append((year, eps))
         except (KeyError, TypeError, ValueError):
@@ -26,11 +31,14 @@ def annual_earnings_condition(metrics: dict, cfg: dict) -> ConditionResult:
     values = sorted(dict(values).items())
     minimum = int(c["minimum_years"])
     if len(values) < minimum:
+        profile = metrics.get("annual_eps_profile") or {}
+        reason = profile.get("reason_code")
+        detail = f" 原因: {reason}" if reason else ""
         return ConditionResult("annual_earnings", "A: 年次EPS成長", Verdict.NA,
                                Role.REQUIRED, Layer.QUALITY_MOMENTUM,
                                values or None, f"{minimum}期以上", "",
                                Fidelity.PRACTICAL,
-                               "年次EPS履歴が不足。Coverageへ反映")
+                               f"年次EPS履歴が不足（{len(values)}/{minimum}期）。Coverageへ反映。{detail}".strip())
     recent = values[-max(minimum, 4):]
     eps = [v for _, v in recent]
     if eps[-1] > 0 and any(v <= 0 for v in eps[:-1]):
@@ -48,7 +56,9 @@ def annual_earnings_condition(metrics: dict, cfg: dict) -> ConditionResult:
     anomaly = any(abs(v) > float(c["max_single_year_growth_pct"]) for v in growth)
     source = str(metrics.get("annual_eps_source") or "")
     source_is_official = "EDINET" in source or "J-Quants" in source
-    strict = (source_is_official and len(eps) >= 4
+    strict_source = ((metrics.get("annual_eps_profile") or {}).get("fidelity") == "STRICT"
+                     if metrics.get("annual_eps_profile") else source_is_official)
+    strict = (strict_source and len(eps) >= 4
               and all(v >= float(c["minimum_each_year_growth_pct"]) for v in growth[-3:])
               and not anomaly)
     practical = (cagr >= float(c["cagr_min_pct"]) and all(v >= 0 for v in growth[-2:])

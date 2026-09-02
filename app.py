@@ -79,7 +79,8 @@ def run_scan(mode: str, scope: str, edinet_marker: str, logic_version: str,
              experimental_version: str):
     # logic_versionをキャッシュキーに含め、モデルや判定変更後に旧オブジェクトを再利用しない。
     service = DataService(DB)
-    result = service.scan(mode, scope=scope, edinet_key=secret_key("EDINET_API_KEY"))
+    result = service.scan(mode, scope=scope, edinet_key=secret_key("EDINET_API_KEY"),
+                          jquants_key=secret_key("JQUANTS_API_KEY"))
     if len(result) == 6:
         universe, raw, fundamentals, sources, errors, data_status = result
     else:
@@ -259,6 +260,34 @@ exp = experimental[a.code]
 st.caption(f"Coreとは独立したObserverです。ランキング順位には影響しません。Experimental Alignment {exp.alignment}/3")
 for name, result in exp.results.items():
     st.write(f"**{name}** — {result.state}（Coverage {result.coverage:.0f}% / {result.fidelity}）")
+
+st.subheader("CAN SLIM A：年次EPSデータ")
+annual = a.metrics.get("annual_eps_profile") or {}
+e1, e2, e3 = st.columns(3)
+e1.metric("取得状態", annual.get("status", "N/A"))
+e2.metric("利用可能年度", f"{annual.get('years_available', 0)}期")
+e3.metric("データ忠実度", annual.get("fidelity", "N/A"))
+st.caption(f"採用元: {annual.get('source_summary', 'N/A')}｜"
+           f"フォールバック: {'使用' if annual.get('fallback_used') else '未使用'}")
+if annual.get("reason_code"):
+    reason_labels = {
+        "EDINET_NOT_FOUND": "EDINET年次EPSが未取得",
+        "EDINET_INSUFFICIENT_YEARS": "EDINETの年度数不足",
+        "JQUANTS_NOT_CONFIGURED": "J-Quantsキー未設定",
+        "JQUANTS_NOT_AVAILABLE": "J-Quants財務なし",
+        "YAHOO_NOT_AVAILABLE": "Yahoo年次EPSなし",
+        "YAHOO_PARSE_ERROR": "Yahoo解析エラー",
+        "INSUFFICIENT_TOTAL_YEARS": "合計年度数不足",
+        "DATA_CONFLICT": "ソース間の値が不一致",
+    }
+    code = annual["reason_code"]
+    st.warning(f"N/A・注意の原因: {reason_labels.get(code, code)}（{code}）")
+if annual.get("records"):
+    st.dataframe(pd.DataFrame([{
+        "年度": row.get("fiscal_year"), "EPS": row.get("eps"),
+        "採用元": row.get("source_family") or row.get("source"),
+        "公表日": row.get("published_date") or row.get("filing_date") or "N/A",
+    } for row in annual["records"]]), hide_index=True, width="stretch")
 
 st.subheader("売買シナリオ")
 plan = getattr(a, "trade_plan", None)

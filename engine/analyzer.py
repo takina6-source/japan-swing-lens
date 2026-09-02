@@ -48,6 +48,7 @@ def analyze(code: str, name: str, df: pd.DataFrame, fundamentals: dict,
     trading_value_20d = float(df.trading_value.tail(20).mean())
     current_trading_value = float(x.trading_value)
     metrics = {**fundamentals, "code": code,
+        "as_of": str(df.index[-1].date()),
         "momentum_percentile": df.attrs.get("momentum_percentile"),
         "benchmark_rs_6m": df.attrs.get("benchmark_rs_6m"),
         "trading_value_20d": trading_value_20d,

@@ -40,7 +40,7 @@ J-Quants Freeは12週間遅延データとの任意照合だけに使い、ラ�
 | VCP | 目視要素あり | 60/30/15日レンジ収縮のPROXY |
 | Qullamaggie Breakout | 裁量要素あり | Momentum、収縮、Pivot、出来高のPROXY |
 | CAN SLIM C/L/M | 日足＋EDINETから一部可能 | 実装済み |
-| CAN SLIM A | EDINET＋Yahoo年次EPS | 3期以上を実データ判定、欠損はN/A |
+| CAN SLIM A | EDINET→J-Quants→Yahoo年次EPS | 年度別混在・優先採用、3期以上を実データ判定、原因付きN/A |
 | CAN SLIM I、製品・経営としてのN | 定性/保有データが必要 | N/Aまたは新高値PROXY |
 | Weinstein Stage 2 | 週足・目視要素あり | 150日MAと抵抗線のPROXY |
 | Darvas Box | 目視要素あり | 20日高安レンジのPROXY |

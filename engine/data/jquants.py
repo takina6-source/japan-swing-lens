@@ -64,6 +64,37 @@ class JQuantsProvider:
         return {"eps_growth": _growth(prev.EPS, latest.EPS),
                 "sales_growth": _growth(prev.Sales, latest.Sales), "source": self.name}
 
+    def annual_eps(self, code: str) -> list[dict]:
+        """通期決算だけを選び、開示日時点のBasic EPS履歴へ正規化する。"""
+        getter = getattr(self.client, "get_fin_summary", None)
+        if getter is None:
+            raise RuntimeError("J-Quants clientに財務サマリーAPIがありません")
+        raw = getter(code=code)
+        if raw is None or raw.empty:
+            return []
+        period_col = next((x for x in ("CurPerType", "TypeOfCurrentPeriod") if x in raw.columns), None)
+        eps_col = next((x for x in ("EPS", "EarningsPerShare") if x in raw.columns), None)
+        date_col = next((x for x in ("CurFYEnd", "CurrentFiscalYearEndDate", "DiscDate",
+                                     "DisclosureDate") if x in raw.columns), None)
+        published_col = next((x for x in ("DiscDate", "DisclosureDate") if x in raw.columns), None)
+        if not period_col or not eps_col or not date_col:
+            return []
+        annual = raw.loc[raw[period_col].astype(str).str.upper().eq("FY")].copy()
+        rows = []
+        for _, item in annual.iterrows():
+            try:
+                value = float(item[eps_col])
+                year = str(pd.Timestamp(item[date_col]).year)
+                if pd.notna(value):
+                    rows.append({"fiscal_year": year, "eps": value,
+                                 "filing_date": str(item[published_col])[:10] if published_col else None,
+                                 "published_date": str(item[published_col])[:10] if published_col else None,
+                                 "source": self.name, "fidelity": "PRACTICAL",
+                                 "period_type": "FY", "concept": eps_col, "priority": 40})
+            except (TypeError, ValueError):
+                continue
+        return sorted(rows, key=lambda row: row["fiscal_year"])
+
 
 def _growth(previous, latest):
     try:

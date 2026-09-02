@@ -25,6 +25,7 @@ from engine.experimental import (analyze_experimental_universe, export_experimen
                                  seed_experimental, update_experimental_tracking)
 from engine.models import SetupState
 from engine.validation import export_validation, seed_validation
+from engine.annual_eps import annual_eps_profile, diagnostic_row
 
 OUT = ROOT / "public" / "dashboard" / "data"
 
@@ -58,14 +59,27 @@ def cached_scan(db: Database, scope: str):
     frames = {code: frame for code, frame in frames.items() if len(frame) >= 200}
     funds = db.load_fundamentals(list(frames))
     annual = db.load_annual_eps(list(frames))
+    annual_cfg = load_config()["free_data"]["annual_eps"]
+    profiles = {code: annual_eps_profile(
+        annual.get(code, []), int(annual_cfg["minimum_years"]),
+        int(annual_cfg["preferred_years"]), float(annual_cfg["conflict_pct"]))
+        for code in frames}
+    cfg = load_config()
+    diagnosed = {row["code"] for row in db.load_fundamental_diagnostics(list(frames))}
+    for code, profile in profiles.items():
+        if code not in diagnosed:
+            db.save_fundamental_diagnostic(
+                diagnostic_row(code, profile, profile["years_available"], []),
+                cfg["logic_version"])
     fundamentals = {code: {
         "eps_growth": funds.get(code, {}).get("eps_growth"),
         "sales_growth": funds.get(code, {}).get("sales_growth"),
         "operating_profit_growth": funds.get(code, {}).get("operating_profit_growth"),
         "fundamental_source": funds.get(code, {}).get("source", "N/A"),
         "fundamental_date": funds.get(code, {}).get("filing_date"),
-        "annual_eps": annual.get(code, []),
-        "annual_eps_source": (annual.get(code) or [{}])[-1].get("source", "N/A"),
+        "annual_eps": profiles[code]["records"],
+        "annual_eps_source": profiles[code]["source_summary"],
+        "annual_eps_profile": profiles[code],
     } for code in frames}
     sources = {code: yahoo.name for code in frames}
     return names, frames, fundamentals, sources, meta
@@ -164,6 +178,7 @@ def export(refresh: bool, scope: str):
             "methods": {name: result.state.value for name, result in item.strategies.items()},
             "summary": summary_text(item),
             "experimental": experimental[item.code].to_dict(),
+            "annual_earnings": clean(fundamentals[item.code].get("annual_eps_profile", {})),
         }
         candidates.append(candidate)
         detail = {

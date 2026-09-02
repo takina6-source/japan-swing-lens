@@ -92,8 +92,8 @@ macOSが初回起動を止める場合は、Finderで `start.command` をControl
 |---|---|---:|---|
 | 上場銘柄・市場・業種 | JPX公式「東証上場銘柄一覧」 | 不要 | 月次更新 |
 | 日足・出来高・TOPIX代理系列（1306 ETF） | Yahoo Finance / `yfinance` | 不要 | 非公式経路。仕様変更や一時失敗の可能性あり |
-| 財務（売上・EPS・ROE等） | 金融庁EDINET API v2 | 無料キー | 有価証券報告書中心で、決算短信より遅い場合あり |
-| 公式株価との照合 | J-Quants Free | 無料キー・任意 | 12週間遅延。ランキング株価には不使用 |
+| 財務（売上・EPS・ROE等） | EDINET → J-Quants → Yahoo | EDINET/J-Quantsは無料キー・任意 | 年度単位で優先ソースを採用。Yahooは非公式補完 |
+| 公式株価との照合 | J-Quants Free | 無料キー・任意 | 遅延データ。ランキング株価には不使用 |
 
 株価の取得に失敗しても、保存済みデータがあれば分析を継続します。画面には最終株価日、取得率、
 EDINET財務の保有銘柄数を表示します。財務がない条件は `×` にせず `N/A` として扱います。
@@ -103,6 +103,11 @@ EDINET財務の保有銘柄数を表示します。財務がない条件は `×`
 日足テクニカル分析だけならキーなしで使えます。CAN SLIMなど財務条件も充実させる場合は、
 本人がEDINETで無料APIキーを発行し、画面左の「無料EDINET財務を設定」に入力してください。
 J-Quants Freeは「任意：J-Quants Free照合」から設定します。
+
+年次EPSはEDINET標準タグ、EDINET拡張タグ、EDINETからの派生値、J-Quants、Yahooの順で
+不足年度だけを補います。同じ年度に複数値がある場合は優先順位を固定し、10%超の差を
+`DATA_CONFLICT` として残します。取得状態は銘柄詳細の「CAN SLIM A：年次EPS」で確認できます。
+一括診断は `python scripts/diagnose_fundamentals.py --na-only`、1銘柄は末尾に4桁コードを指定します。
 
 キーはこのMacの `.streamlit/secrets.toml` にだけ保存され、株価DBと同様にGit管理対象外です。
 チャットへキーを貼り付けないでください。
