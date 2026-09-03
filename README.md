@@ -150,3 +150,14 @@ python3 -m venv .venv
 ```
 
 実装条件と取得可否の詳細は [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) を参照してください。
+
+## Earnings Momentum v2（四半期業績）
+
+Experimental Earnings Momentumは`2026.09-exp-v2-quarterly-earnings`から、CAN SLIM Aの
+年次EPSとは完全に分離した`quarterly_fundamentals`を使用します。J-Quantsの決算情報を優先し、
+不足時はYahoo Quarterly Statementを自動補完します。Yahooは正確な公表日を保証できないため
+`PROXY`とし、取得日より前の判定には利用しません。
+
+EPS・売上・営業利益の前年同期比とEPS加速を四半期データから計算し、欠損はN/AのままCoverageへ
+反映します。赤字から黒字への転換と極端な成長率は通常成長から分離します。この追加チェックは
+Coreランキング、Core Consensus、Turtle、Sector RSには影響しません。

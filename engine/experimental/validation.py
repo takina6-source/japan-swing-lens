@@ -77,6 +77,8 @@ def _save_signal_history(db, experimental, frames, benchmark, cfg):
     for code, analysis in experimental.items():
         frame = frames[code]
         for snapshot in db.experimental_snapshots(code):
+            if snapshot.get("experimental_version") != cfg["experimental_version"]:
+                continue
             start = pd.Timestamp(snapshot["signal_date"])
             end = pd.Timestamp(analysis.as_of)
             path = frame.loc[(frame.index >= start) & (frame.index <= end)]
@@ -143,6 +145,8 @@ def _ensure_controls(db, current_ids, experimental, core_by_code, frames, meta, 
 def _track_controls(db, core_by_code, frames, benchmark, cfg):
     rows = []
     for member in db.experimental_controls():
+        if member.get("experimental_version") != cfg["experimental_version"]:
+            continue
         frame, current = frames.get(member["control_code"]), core_by_code.get(member["control_code"])
         if frame is None or frame.empty or current is None:
             continue
@@ -188,7 +192,10 @@ def export_experimental(db, output: Path, cfg: dict) -> dict:
         "experiment_start_date": cfg["experiment_start_date"],
         "trading_sessions_elapsed": max(offsets, default=0),
         "schema_version": cfg["experimental_export_schema_version"],
-        "signal_count": len(signals), "history_count": len(history),
+        "signal_count": len(signals),
+        "current_version_signal_count": sum(row.get("experimental_version") == cfg["experimental_version"]
+                                            for row in signals),
+        "history_count": len(history),
         "control_count": len(controls), "control_group_count": len({row["control_group_id"] for row in controls}),
         "summary_count": len(summary),
         "available_files": ["signals.csv", "signals.json", "history.csv", "history.json",
@@ -265,6 +272,18 @@ def _summary(performance, cfg):
                       ("EXPERIMENTAL_ALIGNMENT", str(row["experimental_alignment"])),
                       ("EXPERIMENTAL_COMBINATION", row["experimental_combination"]),
                       ("CORE_CROSS", row.get("cross_signal"))]
+        if row.get("strategy") == "EARNINGS":
+            coverage = float(row.get("coverage") or 0)
+            coverage_group = ("100%" if coverage == 100 else "75-99%" if coverage >= 75
+                              else "50-74%" if coverage >= 50 else "<50%")
+            dimensions.extend([
+                ("EARNINGS_COVERAGE", coverage_group),
+                ("EARNINGS_FIDELITY", row.get("fidelity")),
+                ("EPS_ACCELERATION", "YES" if (row.get("eps_acceleration") or 0) > 0 else "NO"),
+                ("SALES_ACCELERATION", "YES" if (row.get("sales_acceleration") or 0) > 0 else "NO"),
+                ("OPERATING_PROFIT_GROWTH", "POSITIVE" if (row.get("operating_profit_growth") or 0) > 0 else "NON_POSITIVE"),
+                ("EARNINGS_GROWTH_TYPE", "TURNAROUND" if row.get("turnaround_flag") else "NORMAL"),
+            ])
         for horizon in cfg["tracking"]["horizons"]:
             if row.get(f"return_{horizon}d_pct") is None:
                 continue

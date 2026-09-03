@@ -95,10 +95,92 @@ class JQuantsProvider:
                 continue
         return sorted(rows, key=lambda row: row["fiscal_year"])
 
+    def quarterly_fundamentals(self, code: str) -> list[dict]:
+        """Normalize J-Quants financial disclosures with their exact disclosure date."""
+        getter = getattr(self.client, "get_fin_summary", None)
+        if getter is None:
+            raise RuntimeError("J-Quants clientに財務サマリーAPIがありません")
+        raw = getter(code=code)
+        if raw is None or raw.empty:
+            return []
+        aliases = {
+            "period": ("CurPerType", "TypeOfCurrentPeriod"),
+            "period_start": ("CurPerSt", "CurrentPeriodStartDate"),
+            "period_end": ("CurPerEn", "CurrentPeriodEndDate"),
+            "fiscal_end": ("CurFYEnd", "CurrentFiscalYearEndDate"),
+            "published_date": ("DiscDate", "DisclosedDate", "DisclosureDate"),
+            "revenue": ("Sales", "NetSales", "Revenue"),
+            "operating_profit": ("OP", "OperatingProfit"),
+            "net_income": ("NP", "Profit", "NetIncome"),
+            "basic_eps": ("EPS", "EarningsPerShare"),
+        }
+        cols = {key: next((name for name in names if name in raw.columns), None)
+                for key, names in aliases.items()}
+        if not cols["period"] or not cols["published_date"]:
+            return []
+        rows = []
+        for _, record in raw.iterrows():
+            period = str(record[cols["period"]]).upper()
+            quarter = _quarter(period)
+            if quarter is None:
+                continue
+            try:
+                fiscal_end = pd.Timestamp(record[cols["fiscal_end"]]) if cols["fiscal_end"] else None
+                published = str(pd.Timestamp(record[cols["published_date"]]).date())
+            except (TypeError, ValueError):
+                continue
+            if cols["period_end"]:
+                try:
+                    period_end = pd.Timestamp(record[cols["period_end"]])
+                except (TypeError, ValueError):
+                    continue
+            elif quarter == "FY" and cols["fiscal_end"]:
+                period_end = fiscal_end
+            else:
+                continue
+            item = {
+                "fiscal_year": str((fiscal_end or period_end).year), "fiscal_quarter": quarter,
+                "period_start": _date(record[cols["period_start"]]) if cols["period_start"] else None,
+                "period_end": str(period_end.date()), "filing_date": published,
+                "published_date": published, "source": self.name,
+                "fidelity": "STRICT", "period_type": "FY" if quarter == "FY" else "YTD",
+                "publication_date_known": 1, "retrieved_at": str(pd.Timestamp.today().date()),
+                "is_derived": 0,
+            }
+            for field in ("revenue", "operating_profit", "net_income", "basic_eps"):
+                item[field] = _number(record[cols[field]]) if cols[field] else None
+            if any(item[field] is not None for field in ("revenue", "operating_profit", "net_income", "basic_eps")):
+                rows.append(item)
+        return sorted(rows, key=lambda row: (row["period_end"], row["published_date"]))
+
 
 def _growth(previous, latest):
     try:
         previous, latest = float(previous), float(latest)
         return None if previous == 0 else (latest / abs(previous) - 1) * 100
+    except (TypeError, ValueError):
+        return None
+
+
+def _quarter(value: str) -> str | None:
+    text = value.upper()
+    if text in ("FY", "4Q", "Q4") or "FULL" in text:
+        return "FY"
+    for number in (1, 2, 3):
+        if str(number) in text:
+            return f"Q{number}"
+    return None
+
+
+def _number(value):
+    try:
+        return float(value) if pd.notna(value) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _date(value):
+    try:
+        return str(pd.Timestamp(value).date())
     except (TypeError, ValueError):
         return None

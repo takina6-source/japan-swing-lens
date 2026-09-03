@@ -184,3 +184,14 @@ GitHub Actions cacheが失われても、直前公開版の `validation/state.js
 - Yahoo Financeは非公式経路で、補正仕様・可用性を保証できない。
 
 この制約はExportの解釈時に考慮し、閾値の自動最適化や勝率だけの評価は行わない。
+
+## Earnings Momentum v2の比較軸
+
+Experimental SummaryはVersionを混在させず、EarningsについてState、Coverage（50%未満、50–74%、
+75–99%、100%）、Fidelity、EPS/Sales加速、営業利益成長、Turnaroundを集計する。Signal Snapshotには
+四半期Raw値から算出したEPS・売上・営業利益YoY、前四半期YoY、加速度、Source、Fidelity、最新期間、
+公表日を保存する。1/5/10/20営業日のMarket、Random、Matched Control比較は従来どおり継続する。
+
+`/data/quarterly_diagnostics.json`とCSVには銘柄別Coverage、取得Source、比較可能期数、欠損理由、
+試行Sourceを出力する。Yahooの公表日不明値は取得日以前の過去Signalへ利用しないため、厳密な過去
+Backfill用途には使用できない。

@@ -26,6 +26,7 @@ from engine.experimental import (analyze_experimental_universe, export_experimen
 from engine.models import SetupState
 from engine.validation import export_validation, seed_validation
 from engine.annual_eps import annual_eps_profile, diagnostic_row
+from engine.quarterly_fundamentals import quarterly_diagnostic, quarterly_profile
 
 OUT = ROOT / "public" / "dashboard" / "data"
 
@@ -59,12 +60,19 @@ def cached_scan(db: Database, scope: str):
     frames = {code: frame for code, frame in frames.items() if len(frame) >= 200}
     funds = db.load_fundamentals(list(frames))
     annual = db.load_annual_eps(list(frames))
+    quarterly = db.load_quarterly_fundamentals(list(frames))
     annual_cfg = load_config()["free_data"]["annual_eps"]
     profiles = {code: annual_eps_profile(
         annual.get(code, []), int(annual_cfg["minimum_years"]),
         int(annual_cfg["preferred_years"]), float(annual_cfg["conflict_pct"]))
         for code in frames}
     cfg = load_config()
+    quarterly_profiles = {code: quarterly_profile(
+        quarterly.get(code, []), cfg, str(frames[code].index[-1].date())) for code in frames}
+    diagnosed_quarterly = {row["code"] for row in db.load_quarterly_diagnostics(list(frames))}
+    for code, profile in quarterly_profiles.items():
+        if code not in diagnosed_quarterly:
+            db.save_quarterly_diagnostic(quarterly_diagnostic(code, profile, []), cfg["logic_version"])
     diagnosed = {row["code"] for row in db.load_fundamental_diagnostics(list(frames))}
     for code, profile in profiles.items():
         if code not in diagnosed:
@@ -80,6 +88,7 @@ def cached_scan(db: Database, scope: str):
         "annual_eps": profiles[code]["records"],
         "annual_eps_source": profiles[code]["source_summary"],
         "annual_eps_profile": profiles[code],
+        "quarterly_earnings": quarterly_profiles[code],
     } for code in frames}
     sources = {code: yahoo.name for code in frames}
     return names, frames, fundamentals, sources, meta
@@ -220,6 +229,39 @@ def export(refresh: bool, scope: str):
         "watch_count": sum(item.state == SetupState.BREAKOUT_WATCH for item in analyses),
         "errors": len(errors),
         "candidates": candidates,
+    }
+    quarterly_diagnostics = db.load_quarterly_diagnostics(list(prepared))
+    (OUT / "quarterly_diagnostics.json").write_text(
+        json.dumps(clean(quarterly_diagnostics), ensure_ascii=False, separators=(",", ":"),
+                   allow_nan=False), encoding="utf-8")
+    csv_rows = []
+    for row in quarterly_diagnostics:
+        flat = {key: value for key, value in row.items()
+                if key not in ("reason_codes_json", "attempted_sources_json", "details_json")}
+        flat["reason_codes"] = "|".join(row.get("reason_codes", []))
+        flat["attempted_sources"] = "|".join(row.get("attempted_sources", []))
+        csv_rows.append(flat)
+    pd.DataFrame(csv_rows).to_csv(OUT / "quarterly_diagnostics.csv", index=False,
+                                  encoding="utf-8-sig")
+    coverage_distribution = {str(level): 0 for level in (0, 25, 50, 75, 100)}
+    source_distribution: dict[str, int] = {}
+    earnings_states: dict[str, int] = {}
+    for code in prepared:
+        profile = fundamentals[code].get("quarterly_earnings") or {}
+        level = str(int(profile.get("coverage") or 0))
+        coverage_distribution[level] = coverage_distribution.get(level, 0) + 1
+        source = str(profile.get("source") or "N/A")
+        source_distribution[source] = source_distribution.get(source, 0) + 1
+        state = experimental[code].results["EARNINGS"].state
+        earnings_states[state] = earnings_states.get(state, 0) + 1
+    snapshot["quarterly_fundamentals"] = {
+        "successful_stocks": sum((fundamentals[code].get("quarterly_earnings") or {}).get(
+            "quarters_available", 0) > 0 for code in prepared),
+        "coverage_distribution": coverage_distribution,
+        "source_distribution": source_distribution,
+        "earnings_states": earnings_states,
+        "diagnostics_files": ["data/quarterly_diagnostics.json",
+                              "data/quarterly_diagnostics.csv"],
     }
     validation = export_validation(db, ROOT / "public" / "dashboard" / "validation", cfg)
     snapshot["validation"] = validation

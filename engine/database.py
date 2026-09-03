@@ -74,6 +74,20 @@ class Database:
               code TEXT, fiscal_year TEXT, eps REAL, filing_date TEXT, source TEXT,
               updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
               PRIMARY KEY(code,fiscal_year,source));
+            CREATE TABLE IF NOT EXISTS quarterly_fundamentals (
+              code TEXT, fiscal_year TEXT, fiscal_quarter TEXT,
+              period_start TEXT, period_end TEXT, filing_date TEXT, published_date TEXT,
+              revenue REAL, operating_profit REAL, net_income REAL, basic_eps REAL,
+              source TEXT, fidelity TEXT, period_type TEXT, publication_date_known INTEGER,
+              retrieved_at TEXT, is_derived INTEGER DEFAULT 0, company_forecast INTEGER DEFAULT 0,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY(code,period_end,period_type,source,is_derived));
+            CREATE TABLE IF NOT EXISTS quarterly_fundamental_diagnostics (
+              code TEXT PRIMARY KEY, status TEXT, coverage REAL, quarters_available INTEGER,
+              source_summary TEXT, fidelity TEXT, latest_period TEXT, published_date TEXT,
+              reason_codes_json TEXT, attempted_sources_json TEXT, details_json TEXT,
+              logic_version TEXT, diagnosed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS fundamental_data_diagnostics (
               code TEXT PRIMARY KEY, status TEXT, fidelity TEXT,
               years_available INTEGER, initial_years INTEGER, source_summary TEXT,
@@ -167,6 +181,10 @@ class Database:
               ON experimental_history(experimental_signal_id,session_offset);
             CREATE INDEX IF NOT EXISTS idx_experimental_controls_signal
               ON experimental_control_members(experimental_signal_id);
+            CREATE INDEX IF NOT EXISTS idx_quarterly_code_period
+              ON quarterly_fundamentals(code,period_end);
+            CREATE INDEX IF NOT EXISTS idx_quarterly_publication
+              ON quarterly_fundamentals(code,published_date);
             """)
             self._ensure_columns(con, "fundamentals", {
                 "operating_profit_growth": "REAL",
@@ -314,6 +332,79 @@ class Database:
                 for row in rows:
                     result.setdefault(row["code"], []).append(dict(row))
         return result
+
+    def save_quarterly_fundamentals(self, code: str, rows: list[dict], source: str):
+        columns = ["code", "fiscal_year", "fiscal_quarter", "period_start", "period_end",
+                   "filing_date", "published_date", "revenue", "operating_profit",
+                   "net_income", "basic_eps", "source", "fidelity", "period_type",
+                   "publication_date_known", "retrieved_at", "is_derived", "company_forecast"]
+        values = []
+        for row in rows:
+            if not row.get("period_end"):
+                continue
+            item = dict(row)
+            item.update({"code": code, "source": row.get("source") or source,
+                         "period_type": row.get("period_type", "QUARTER"),
+                         "fiscal_quarter": row.get("fiscal_quarter", "UNKNOWN"),
+                         "fiscal_year": str(row.get("fiscal_year") or "UNKNOWN"),
+                         "publication_date_known": int(bool(row.get("publication_date_known") or
+                                                            row.get("published_date") or row.get("filing_date"))),
+                         "is_derived": int(bool(row.get("is_derived"))),
+                         "company_forecast": int(bool(row.get("company_forecast")))})
+            values.append([item.get(column) for column in columns])
+        if not values:
+            return
+        marks = ",".join("?" for _ in columns)
+        with self.connect() as con:
+            con.executemany(f"""INSERT OR REPLACE INTO quarterly_fundamentals
+            ({','.join(columns)}) VALUES({marks})""", values)
+
+    def load_quarterly_fundamentals(self, codes: list[str]) -> dict[str, list[dict]]:
+        result: dict[str, list[dict]] = {code: [] for code in codes}
+        if not codes:
+            return result
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            for start in range(0, len(codes), 800):
+                part = codes[start:start + 800]
+                marks = ",".join("?" for _ in part)
+                rows = con.execute(f"""SELECT * FROM quarterly_fundamentals
+                    WHERE code IN ({marks}) ORDER BY code,period_end,source""", part)
+                for row in rows:
+                    result.setdefault(row["code"], []).append(dict(row))
+        return result
+
+    def save_quarterly_diagnostic(self, row: dict, logic_version: str):
+        with self.connect() as con:
+            con.execute("""INSERT OR REPLACE INTO quarterly_fundamental_diagnostics
+            (code,status,coverage,quarters_available,source_summary,fidelity,latest_period,
+             published_date,reason_codes_json,attempted_sources_json,details_json,logic_version)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (
+                row["code"], row["status"], row.get("coverage"), row.get("quarters_available", 0),
+                row.get("source_summary", "N/A"), row.get("fidelity", "N/A"),
+                row.get("latest_period"), row.get("published_date"),
+                json.dumps(row.get("reason_codes", []), ensure_ascii=False),
+                json.dumps(row.get("attempted_sources", []), ensure_ascii=False),
+                json.dumps(row.get("details", {}), ensure_ascii=False), logic_version))
+
+    def load_quarterly_diagnostics(self, codes: list[str] | None = None) -> list[dict]:
+        query, args = "SELECT * FROM quarterly_fundamental_diagnostics", []
+        if codes:
+            query += f" WHERE code IN ({','.join('?' for _ in codes)})"
+            args.extend(codes)
+        query += " ORDER BY code"
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            rows = [dict(row) for row in con.execute(query, args)]
+        for row in rows:
+            for source, target, fallback in (("reason_codes_json", "reason_codes", []),
+                                             ("attempted_sources_json", "attempted_sources", []),
+                                             ("details_json", "details", {})):
+                try:
+                    row[target] = json.loads(row.get(source) or json.dumps(fallback))
+                except json.JSONDecodeError:
+                    row[target] = fallback
+        return rows
 
     def save_fundamental_diagnostic(self, row: dict, logic_version: str):
         with self.connect() as con:

@@ -116,3 +116,20 @@ EDINETは法定開示中心で速報性が低く、文書タグ差による欠�
 
 この制約を踏まえ、約1か月後にTurtle、Earnings、Leading Sectorの単独優位性、Alignment別の差、
 Core単独対Core + Experimental、Matched Control超過をVersion固定の観測データで判断する。
+
+## Earnings Momentum v2（2026-09-04開始）
+
+`2026.09-exp-v1`のSnapshotは変更せず、`2026.09-exp-v2-quarterly-earnings`を別実験として開始する。
+Earningsは年次EPSによる加速代用を廃止し、独立した四半期テーブルから同一四半期の前年同期比を
+計算する。Source PriorityはJQUANTS、EDINET、YAHOO。現状EDINETは四半期開示の網羅性を保証できない
+ため診断上のFallback候補に留め、J-Quants不足時はYahooを利用する。
+
+- `STRONG`: EPS YoY 25%以上、売上YoY 20%以上、EPS加速が正、必要データが揃う
+- `EARNINGS MOMENTUM`: EPS YoY 25%以上、Coverage 50%以上、取得済み主要値に明確な悪化がない
+- `IMPROVING`: 成長はあるが上記未達、Turnaround、または異常値保留
+- `NOT QUALIFIED`: 条件未達または比較不能
+
+累計開示は売上・利益のみ前期間との差から単独四半期を導出できる。加重平均株式数の影響がある
+EPSは無理に差し引かず、同じYTD期間の前年同期比として扱う。Yahooの公表日不明値は取得日を
+`available_from`とし、それ以前のSignalへは遡及適用しない。CoverageはEPS YoY、売上YoY、営業利益
+YoY、EPS加速の4項目で25%刻み。SnapshotにはSource、Fidelity、公表日、期間、欠損理由も固定保存する。

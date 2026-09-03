@@ -1,11 +1,11 @@
-logic_version: "2026.09-v7-fundamental-fallback"
+logic_version: "2026.09-v8-quarterly-earnings"
 strategy_version: "pivot-consensus-v1"
 threshold_version: "2026.08-v6-control"
 schema_version: "3.1"
 export_schema_version: "3.1"
-experimental_version: "2026.09-exp-v1"
-experimental_export_schema_version: "1.0"
-experiment_start_date: "2026-09-01"
+experimental_version: "2026.09-exp-v2-quarterly-earnings"
+experimental_export_schema_version: "2.0"
+experiment_start_date: "2026-09-04"
 free_data:
   yahoo_batch_size: 80
   initial_history_period: "2y"
@@ -22,6 +22,16 @@ free_data:
     enable_yahoo_fallback: true
     diagnostics: true
     conflict_pct: 10
+  quarterly_fundamentals:
+    source_priority: [JQUANTS, EDINET, YAHOO]
+    minimum_quarters: 5
+    preferred_quarters: 9
+    cache_days: 7
+    updates_per_run: 80
+    target_coverage_pct: 75
+    max_statement_age_days: 200
+    enable_jquants: true
+    enable_yahoo: true
 trade_plan:
   entry_zone_above_pivot_pct: 2
   do_not_chase_above_pivot_pct: 5
@@ -122,7 +132,9 @@ experimental:
     eps_growth_min_pct: 25
     sales_growth_min_pct: 20
     strong_coverage_min_pct: 50
+    momentum_coverage_min_pct: 50
     anomaly_growth_pct: 400
+    near_zero_eps: 0.5
   sector:
     leading_percentile: 90
     strong_percentile: 80

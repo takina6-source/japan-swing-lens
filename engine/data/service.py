@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import date
 import pandas as pd
 from .demo import NAMES, demo_fundamentals, make_demo_history
 from .yahoo import YahooProvider
@@ -10,6 +11,7 @@ from ..database import Database
 from ..config import load_config
 from ..annual_eps import (annual_eps_profile, diagnostic_row, resolve_with_fallback,
                           source_family)
+from ..quarterly_fundamentals import quarterly_diagnostic, quarterly_profile
 
 log = logging.getLogger(__name__)
 
@@ -145,12 +147,90 @@ class DataService:
                 row = diagnostic_row(code, profile,
                                      initial_profiles[code]["years_available"], attempts[code])
                 self.db.save_fundamental_diagnostic(row, cfg["logic_version"])
+        quarterly_cfg = cfg["free_data"]["quarterly_fundamentals"]
+        quarterly_cache = self.db.load_quarterly_fundamentals(list(frames))
+        previous_quarterly_diagnostics = {
+            row["code"]: row for row in self.db.load_quarterly_diagnostics(list(frames))}
+        as_of_by_code = {code: str(frame.index[-1].date()) for code, frame in frames.items()}
+        initial_quarterly = {code: quarterly_profile(quarterly_cache.get(code, []), cfg,
+                                                     as_of_by_code[code])
+                             for code in frames}
+        refresh_quarterly = []
+        for code, profile in initial_quarterly.items():
+            records = quarterly_cache.get(code, [])
+            newest = max((str(row.get("updated_at") or "")[:10] for row in records), default="")
+            stale = (not newest or
+                     (pd.Timestamp(date.today()) - pd.Timestamp(newest)).days >= int(quarterly_cfg["cache_days"]))
+            previous_diagnostic = previous_quarterly_diagnostics.get(code, {})
+            attempted = previous_diagnostic.get("attempted_sources") or []
+            last_attempt = str((previous_diagnostic.get("details") or {}).get("last_attempt_at") or
+                               (previous_diagnostic.get("updated_at") if attempted else ""))[:10]
+            retry_due = (not last_attempt or
+                         (pd.Timestamp(date.today()) - pd.Timestamp(last_attempt)).days
+                         >= int(quarterly_cfg["cache_days"]))
+            needs_data = profile["quarters_available"] < int(quarterly_cfg["minimum_quarters"])
+            if (needs_data and retry_due) or (not needs_data and stale):
+                refresh_quarterly.append(code)
+        refresh_quarterly.sort(key=lambda code: _momentum(frames[code]), reverse=True)
+        quarterly_attempts: dict[str, list[str]] = {code: [] for code in frames}
+        limit = int(quarterly_cfg["updates_per_run"])
+        for code in refresh_quarterly[:limit]:
+            current = list(quarterly_cache.get(code, []))
+            if quarterly_cfg.get("enable_jquants", True):
+                if jq_key:
+                    quarterly_attempts[code].append("JQUANTS")
+                    try:
+                        if jq is None:
+                            from .jquants import JQuantsProvider
+                            jq = JQuantsProvider(jq_key)
+                        rows = jq.quarterly_fundamentals(code)
+                        if rows:
+                            self.db.save_quarterly_fundamentals(code, rows, jq.name)
+                            current.extend(rows)
+                        else:
+                            quarterly_attempts[code].append("JQUANTS_NOT_FOUND")
+                    except Exception as exc:
+                        quarterly_attempts[code].append("JQUANTS_FETCH_ERROR")
+                        errors.append(f"{code}: J-Quants四半期財務 {exc}")
+                else:
+                    quarterly_attempts[code].append("JQUANTS_NOT_CONFIGURED")
+            # EDINET quarterly coverage is not dependable after the disclosure-system change.
+            quarterly_attempts[code].append("EDINET_NOT_AVAILABLE")
+            interim = quarterly_profile(current, cfg, as_of_by_code[code])
+            if (quarterly_cfg.get("enable_yahoo", True)
+                    and interim["coverage"] < float(quarterly_cfg["target_coverage_pct"])):
+                quarterly_attempts[code].append("YAHOO")
+                try:
+                    rows = yahoo.quarterly_fundamentals(code)
+                    if rows:
+                        self.db.save_quarterly_fundamentals(code, rows, yahoo.name)
+                    else:
+                        quarterly_attempts[code].append("YAHOO_NO_QUARTERLY_STATEMENT")
+                except Exception as exc:
+                    quarterly_attempts[code].append("YAHOO_FETCH_ERROR")
+                    errors.append(f"{code}: Yahoo四半期財務 {exc}")
+        quarterly_cache = self.db.load_quarterly_fundamentals(list(frames))
+        quarterly_profiles = {code: quarterly_profile(quarterly_cache.get(code, []), cfg,
+                                                       as_of_by_code[code])
+                              for code in frames}
+        for code, profile in quarterly_profiles.items():
+            attempts_for_diagnostic = (quarterly_attempts[code] or
+                                       (previous_quarterly_diagnostics.get(code, {}).get(
+                                           "attempted_sources") or []))
+            diagnostic = quarterly_diagnostic(code, profile, attempts_for_diagnostic)
+            previous_details = (previous_quarterly_diagnostics.get(code, {}).get("details") or {})
+            diagnostic["details"]["last_attempt_at"] = (
+                date.today().isoformat() if quarterly_attempts[code]
+                else previous_details.get("last_attempt_at"))
+            self.db.save_quarterly_diagnostic(
+                diagnostic, cfg["logic_version"])
         fundamentals = {c: {"eps_growth": fund_cache.get(c, {}).get("eps_growth"),
                             "sales_growth": fund_cache.get(c, {}).get("sales_growth"),
                             "operating_profit_growth": fund_cache.get(c, {}).get("operating_profit_growth"),
                             "annual_eps": profiles[c]["records"],
                             "annual_eps_source": profiles[c]["source_summary"],
                             "annual_eps_profile": profiles[c],
+                            "quarterly_earnings": quarterly_profiles[c],
                             "fundamental_source": fund_cache.get(c, {}).get("source", "N/A"),
                             "fundamental_date": fund_cache.get(c, {}).get("filing_date")}
                         for c in frames}
@@ -158,7 +238,9 @@ class DataService:
         self.db.log_fetch(yahoo.name, scope, True, f"{len(frames)}/{len(codes)}銘柄")
         status = {"requested": len(codes), "available": len(frames),
                   "price": self.db.source_status(yahoo.name),
-                  "universe_source": "JPX公式", "fundamentals": len(fund_cache)}
+                  "universe_source": "JPX公式", "fundamentals": len(fund_cache),
+                  "quarterly_fundamentals": sum(bool(p["quarters_available"])
+                                                for p in quarterly_profiles.values())}
         names = {c: universe[c] for c in frames}
         return names, frames, fundamentals, sources, errors, status
 

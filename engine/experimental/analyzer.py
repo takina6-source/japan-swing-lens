@@ -110,24 +110,21 @@ def turtle(frame: pd.DataFrame, cfg: dict) -> ExperimentalResult:
 
 def earnings_momentum(metrics: dict, cfg: dict, as_of: str = "", code: str = "") -> ExperimentalResult:
     c = cfg["experimental"]["earnings"]
-    eps_growth = _number(metrics.get("eps_growth"))
-    sales_growth = _number(metrics.get("sales_growth"))
-    operating_growth = _number(metrics.get("operating_profit_growth"))
-    annual = []
-    for row in metrics.get("annual_eps") or []:
-        value = _number(row.get("eps"))
-        if value is not None:
-            annual.append((str(row.get("fiscal_year")), value))
-    annual.sort()
-    growth = [_growth(annual[i - 1][1], annual[i][1]) for i in range(1, len(annual))]
-    valid_growth = [value for value in growth if value is not None]
-    acceleration = (valid_growth[-1] - valid_growth[-2]) if len(valid_growth) >= 2 else None
-    turnaround = bool(len(annual) >= 2 and annual[-2][1] <= 0 < annual[-1][1])
-    anomaly = any(abs(value) > float(c["anomaly_growth_pct"]) for value in valid_growth)
-    available = sum(value is not None for value in
-                    (eps_growth, sales_growth, operating_growth, acceleration))
-    coverage = available / 4 * 100
-    if turnaround:
+    quarterly = metrics.get("quarterly_earnings") or {}
+    eps_growth = _number(quarterly.get("eps_growth"))
+    previous_eps = _number(quarterly.get("previous_eps_growth"))
+    sales_growth = _number(quarterly.get("sales_growth"))
+    previous_sales = _number(quarterly.get("previous_sales_growth"))
+    operating_growth = _number(quarterly.get("operating_profit_growth"))
+    acceleration = _number(quarterly.get("eps_acceleration"))
+    sales_acceleration = _number(quarterly.get("sales_acceleration"))
+    coverage = float(quarterly.get("coverage") or 0)
+    turnaround = bool(quarterly.get("turnaround_flag"))
+    anomaly = bool(quarterly.get("anomaly_flag"))
+    stale = bool(quarterly.get("stale"))
+    if stale:
+        state = "NOT QUALIFIED"
+    elif turnaround:
         state = "IMPROVING"
     elif anomaly:
         state = "IMPROVING"
@@ -137,24 +134,38 @@ def earnings_momentum(metrics: dict, cfg: dict, as_of: str = "", code: str = "")
           and acceleration is not None and acceleration > 0
           and coverage >= float(c["strong_coverage_min_pct"])):
         state = "STRONG"
-    elif eps_growth is not None and eps_growth >= float(c["eps_growth_min_pct"]):
+    elif (eps_growth is not None and eps_growth >= float(c["eps_growth_min_pct"])
+          and coverage >= float(c["momentum_coverage_min_pct"])
+          and (sales_growth is None or sales_growth >= 0)
+          and (operating_growth is None or operating_growth >= 0)):
         state = "EARNINGS MOMENTUM"
-    elif any(value is not None and value > 0 for value in (eps_growth, sales_growth, acceleration)):
+    elif any(value is not None and value > 0 for value in
+             (eps_growth, sales_growth, operating_growth, acceleration)):
         state = "IMPROVING"
     else:
         state = "NOT QUALIFIED"
-    source = str(metrics.get("fundamental_source") or metrics.get("annual_eps_source") or "N/A")
-    filing = metrics.get("fundamental_date") or metrics.get("filing_date")
-    fidelity = "STRICT" if filing and ("EDINET" in source or "J-Quants" in source) else "PRACTICAL" if filing else "PROXY"
-    setup_basis = str(filing or (annual[-1][0] if annual else as_of or "unknown"))
+    source = str(quarterly.get("source") or "N/A")
+    filing = quarterly.get("published_date")
+    fidelity = str(quarterly.get("fidelity") or "N/A")
+    setup_basis = str(quarterly.get("latest_period") or filing or as_of or "unknown")
     setup_id = f"EARNINGS:{code}:{setup_basis}" if state in ("STRONG", "EARNINGS MOMENTUM") else None
     result_metrics = {
-        "eps_growth": eps_growth, "sales_growth": sales_growth,
+        "eps_growth": eps_growth, "previous_eps_growth": previous_eps,
+        "sales_growth": sales_growth, "previous_sales_growth": previous_sales,
         "operating_profit_growth": operating_growth,
-        "eps_acceleration": _finite(acceleration), "sales_acceleration": None,
+        "eps_acceleration": _finite(acceleration), "sales_acceleration": sales_acceleration,
         "earnings_revision": None, "turnaround_flag": turnaround,
         "anomaly_flag": anomaly, "data_coverage": coverage,
-        "filing_date": filing, "source": source,
+        "filing_date": filing, "published_date": filing,
+        "available_from": quarterly.get("available_from"),
+        "publication_date_known": quarterly.get("publication_date_known"),
+        "source": source, "fidelity": fidelity,
+        "latest_period": quarterly.get("latest_period"),
+        "fiscal_quarter": quarterly.get("fiscal_quarter"),
+        "period_type": quarterly.get("period_type"),
+        "missing": quarterly.get("missing", []),
+        "reason_codes": quarterly.get("reason_codes", []),
+        "stale": stale,
     }
     return ExperimentalResult("EARNINGS", state,
                               state in ("STRONG", "EARNINGS MOMENTUM"),

@@ -48,25 +48,40 @@ def test_turtle_existing_breakout_is_not_new_and_pivot_failure_is_failed():
 
 def test_earnings_acceleration_deceleration_turnaround_missing_and_anomaly():
     cfg = load_config()
-    strong = earnings_momentum({"eps_growth": 40, "sales_growth": 25,
-        "annual_eps": [{"fiscal_year": "2023", "eps": 100},
-                       {"fiscal_year": "2024", "eps": 120},
-                       {"fiscal_year": "2025", "eps": 156}]}, cfg, "2026-09-01", "1000")
+    strong = earnings_momentum({"quarterly_earnings": {
+        "eps_growth": 50, "previous_eps_growth": 30, "eps_acceleration": 20,
+        "sales_growth": 30, "previous_sales_growth": 20, "sales_acceleration": 10,
+        "operating_profit_growth": 35, "coverage": 100, "latest_period": "2026-06-30",
+        "published_date": "2026-08-01", "publication_date_known": True,
+        "source": "JQUANTS", "fidelity": "STRICT"}}, cfg, "2026-09-04", "1000")
     assert strong.state == "STRONG"
-    slowing = earnings_momentum({"eps_growth": 40, "sales_growth": 25,
-        "annual_eps": [{"fiscal_year": "2023", "eps": 100},
-                       {"fiscal_year": "2024", "eps": 150},
-                       {"fiscal_year": "2025", "eps": 165}]}, cfg)
+    slowing = earnings_momentum({"quarterly_earnings": {
+        "eps_growth": 25, "previous_eps_growth": 40, "eps_acceleration": -15,
+        "sales_growth": 25, "coverage": 75, "source": "JQUANTS", "fidelity": "STRICT"}}, cfg)
     assert slowing.state != "STRONG"
-    turnaround = earnings_momentum({"annual_eps": [
-        {"fiscal_year": "2024", "eps": -10}, {"fiscal_year": "2025", "eps": 20}]}, cfg)
+    turnaround = earnings_momentum({"quarterly_earnings": {
+        "turnaround_flag": True, "coverage": 50, "source": "JQUANTS"}}, cfg)
     assert turnaround.state == "IMPROVING" and turnaround.metrics["turnaround_flag"]
     missing = earnings_momentum({}, cfg)
     assert missing.state == "NOT QUALIFIED" and missing.coverage == 0
-    anomaly = earnings_momentum({"annual_eps": [
-        {"fiscal_year": "2023", "eps": 1}, {"fiscal_year": "2024", "eps": 10},
-        {"fiscal_year": "2025", "eps": 11}]}, cfg)
+    anomaly = earnings_momentum({"quarterly_earnings": {
+        "anomaly_flag": True, "coverage": 50, "source": "YAHOO", "fidelity": "PROXY"}}, cfg)
     assert anomaly.state == "IMPROVING" and anomaly.metrics["anomaly_flag"]
+
+
+def test_earnings_momentum_requires_quarterly_coverage_and_does_not_use_annual_eps():
+    cfg = load_config()
+    annual_only = earnings_momentum({"eps_growth": 80, "sales_growth": 50,
+        "annual_eps": [{"fiscal_year": "2024", "eps": 10},
+                       {"fiscal_year": "2025", "eps": 30}]}, cfg)
+    assert annual_only.state == "NOT QUALIFIED" and annual_only.coverage == 0
+    partial = earnings_momentum({"quarterly_earnings": {
+        "eps_growth": 30, "sales_growth": 22, "coverage": 50,
+        "source": "YAHOO", "fidelity": "PROXY"}}, cfg)
+    assert partial.state == "EARNINGS MOMENTUM"
+    weak = earnings_momentum({"quarterly_earnings": {
+        "eps_growth": 10, "sales_growth": 5, "coverage": 50}}, cfg)
+    assert weak.state not in ("STRONG", "EARNINGS MOMENTUM")
 
 
 def test_sector_leader_requires_both_sector_and_stock_strength():
@@ -95,6 +110,28 @@ def test_experimental_analysis_does_not_mutate_core_state_or_ranking():
     after = [(item.code, item.state, item.breakout_strategy_count,
               item.aligned_strategy_count, item.confluence, item.rank_key) for item in core]
     assert after == before
+
+
+def test_quarterly_earnings_input_does_not_change_turtle_or_sector_rs():
+    cfg = load_config()
+    raw = {code: make_demo_history(code) for code in ("7203", "6758", "8306")}
+    benchmark = make_demo_history("TOPIX")
+    prepared = prepare_universe(raw, benchmark)
+    core = rank([analyze(code, code, frame, demo_fundamentals(code), "DEMO",
+                         benchmark, cfg) for code, frame in prepared.items()])
+    meta = {code: {"sector33": "輸送用機器" if code == "7203" else "電気機器"}
+            for code in raw}
+    base = {code: demo_fundamentals(code) for code in raw}
+    before = analyze_experimental_universe(core, prepared, base, meta, benchmark, cfg)
+    enriched = {code: {**values, "quarterly_earnings": {
+        "eps_growth": 50, "previous_eps_growth": 30, "eps_acceleration": 20,
+        "sales_growth": 30, "operating_profit_growth": 20, "coverage": 100,
+        "source": "TEST", "fidelity": "STRICT", "latest_period": "2026-06-30"}}
+        for code, values in base.items()}
+    after = analyze_experimental_universe(core, prepared, enriched, meta, benchmark, cfg)
+    for code in raw:
+        assert before[code].results["TURTLE"] == after[code].results["TURTLE"]
+        assert before[code].results["SECTOR_RS"] == after[code].results["SECTOR_RS"]
 
 
 def test_experimental_does_not_backfill_before_start_date(tmp_path):
