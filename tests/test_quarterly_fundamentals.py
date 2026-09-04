@@ -132,6 +132,12 @@ def test_yahoo_missing_item_is_not_inferred():
     assert diagnostics["revenue"]["reason"] == "ITEM_NAME_NOT_FOUND"
 
 
+def test_yahoo_empty_statement_keeps_field_level_missing_reason():
+    rows, diagnostics = normalize_yahoo_quarterly_statement(pd.DataFrame(), "2026-09-04")
+    assert rows == []
+    assert all(item["reason"] == "STATEMENT_EMPTY" for item in diagnostics.values())
+
+
 def test_yahoo_proxy_without_publication_date_is_not_used_before_retrieval():
     cfg = load_config()
     statement = pd.DataFrame({

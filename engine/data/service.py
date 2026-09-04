@@ -208,6 +208,9 @@ class DataService:
         quarterly_source_attempts: dict[str, dict[str, str]] = {
             code: dict((previous_quarterly_diagnostics.get(code, {}).get("details") or {}).get(
                 "source_attempts") or {}) for code in frames}
+        quarterly_field_diagnostics: dict[str, dict] = {
+            code: dict((previous_quarterly_diagnostics.get(code, {}).get("details") or {}).get(
+                "field_diagnostics") or {}) for code in frames}
         quarterly_reasons: dict[str, list[str]] = {code: [] for code in frames}
         for code in refresh_quarterly[:limit]:
             current = list(quarterly_cache.get(code, []))
@@ -247,6 +250,8 @@ class DataService:
                     quarterly_attempts[code].append("YAHOO")
                 try:
                     rows = yahoo.quarterly_fundamentals(code)
+                    quarterly_field_diagnostics[code] = dict(
+                        getattr(yahoo, "last_quarterly_diagnostics", {}) or {})
                     if rows:
                         self.db.save_quarterly_fundamentals(code, rows, yahoo.name)
                         quarterly_source_attempts[code]["YAHOO"] = "SUCCESS"
@@ -275,6 +280,8 @@ class DataService:
             diagnostic["details"]["last_attempt_at"] = (
                 date.today().isoformat() if code in refresh_quarterly[:limit]
                 else previous_details.get("last_attempt_at"))
+            if quarterly_field_diagnostics[code]:
+                diagnostic["details"]["field_diagnostics"] = quarterly_field_diagnostics[code]
             self.db.save_quarterly_diagnostic(
                 diagnostic, cfg["logic_version"])
         fundamentals = {c: {"eps_growth": fund_cache.get(c, {}).get("eps_growth"),
