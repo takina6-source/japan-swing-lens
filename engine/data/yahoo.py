@@ -7,7 +7,7 @@ from datetime import date
 from functools import lru_cache
 import pandas as pd
 
-from ..config import ROOT
+from ..config import ROOT, load_config
 from ..annual_eps import SourceFetchError
 
 log = logging.getLogger(__name__)
@@ -125,48 +125,17 @@ class YahooProvider:
             return []
         retrieved = date.today().isoformat()
         rows, field_diagnostics = normalize_yahoo_quarterly_statement(statement, retrieved)
-        self.last_quarterly_diagnostics = field_diagnostics
-        # Yahoo's earnings calendar often exposes more EPS observations than the
-        # statement endpoint and includes an event date. Align the newest event
-        # with the newest statement period, then extend backwards by quarters.
-        # This is still PROXY data, but it makes EPS acceleration observable
-        # without pretending the event date is an official filing timestamp.
         try:
             earnings = ticker.get_earnings_dates(limit=12)
-            actual = earnings.dropna(subset=["Reported EPS"]).sort_index(ascending=False)
         except Exception:
-            actual = pd.DataFrame()
-        if rows and not actual.empty:
-            by_period = {row["period_end"]: row for row in rows}
-            statement_periods = sorted(by_period, reverse=True)
-            oldest_end = pd.Timestamp(statement_periods[-1])
-            for index, (_, event) in enumerate(actual.iterrows()):
-                if index < len(statement_periods):
-                    period_text = statement_periods[index]
-                    period_end = pd.Timestamp(period_text)
-                else:
-                    period_end = oldest_end - pd.DateOffset(months=3 * (index - len(statement_periods) + 1))
-                    period_text = str(period_end.date())
-                event_date = pd.Timestamp(event.name)
-                if event_date.tzinfo is not None:
-                    event_date = event_date.tz_convert("Asia/Tokyo")
-                published = str(event_date.date())
-                row = by_period.get(period_text)
-                if row is None:
-                    row = {
-                        "fiscal_year": str(period_end.year),
-                        "fiscal_quarter": f"Q{period_end.quarter}",
-                        "period_start": None, "period_end": period_text,
-                        "revenue": None, "operating_profit": None, "net_income": None,
-                        "source": "YAHOO_QUARTERLY", "fidelity": "PROXY",
-                        "period_type": "QUARTER", "retrieved_at": retrieved,
-                        "is_derived": 0,
-                    }
-                    rows.append(row)
-                    by_period[period_text] = row
-                row.update({"basic_eps": _number(event.get("Reported EPS")),
-                            "filing_date": published, "published_date": published,
-                            "publication_date_known": 1})
+            earnings = pd.DataFrame()
+        split_dates = _ticker_split_dates(ticker)
+        max_days = int(load_config()["free_data"]["quarterly_fundamentals"].get(
+            "yahoo_eps_match_max_days", 120))
+        rows, eps_diagnostic = merge_yahoo_reported_eps(
+            rows, earnings, split_dates, max_days=max_days)
+        field_diagnostics["basic_eps"].update(eps_diagnostic)
+        self.last_quarterly_diagnostics = field_diagnostics
         return sorted(rows, key=lambda row: row["period_end"])
 
 
@@ -234,6 +203,9 @@ def normalize_yahoo_quarterly_statement(statement: pd.DataFrame,
             if row_name is not None and value is None:
                 item_diagnostics[field] = {"status": "MISSING", "item_name": str(row_name),
                                            "reason": "VALUE_EMPTY_OR_INVALID"}
+        if item.get("basic_eps") is not None:
+            item["eps_period_match_status"] = "MATCHED"
+            item_diagnostics["basic_eps"]["period_match_status"] = "MATCHED"
         item["field_diagnostics"] = item_diagnostics
         if any(item[field] is not None for field in QUARTERLY_ALIASES):
             rows.append(item)
@@ -242,6 +214,125 @@ def normalize_yahoo_quarterly_statement(statement: pd.DataFrame,
                              "reason": value.get("reason") or "NO_VALID_PERIOD_VALUES"})
                     for field, value in diagnostics.items()}
     return sorted(rows, key=lambda row: row["period_end"]), diagnostics
+
+
+EPS_PERIOD_ALIASES = (
+    "Period End", "PeriodEnd", "Quarter End", "QuarterEnd",
+    "Fiscal Period End", "FiscalPeriodEnd", "Earnings Period", "EarningsPeriod",
+)
+
+
+def merge_yahoo_reported_eps(rows: list[dict], earnings: pd.DataFrame | None,
+                             split_dates: list | None = None,
+                             max_days: int = 120) -> tuple[list[dict], dict]:
+    """Fill calendar EPS only when its fiscal period is explicit and unambiguous."""
+    output = [dict(row) for row in rows]
+    for row in output:
+        row["field_diagnostics"] = {
+            key: dict(value) for key, value in (row.get("field_diagnostics") or {}).items()}
+    counts = {"MATCHED": 0, "AMBIGUOUS": 0, "UNMATCHED": 0}
+    warnings = 0
+    if earnings is not None and not earnings.empty and "Reported EPS" in earnings.columns:
+        for event_index, event in earnings.dropna(subset=["Reported EPS"]).iterrows():
+            explicit = next((_date_value(event.get(alias)) for alias in EPS_PERIOD_ALIASES
+                             if alias in event.index and _date_value(event.get(alias))), None)
+            if explicit is None:
+                counts["UNMATCHED"] += 1
+                continue
+            period_text = str(explicit.date())
+            candidates = [row for row in output if row.get("period_end") == period_text]
+            if len(candidates) > 1:
+                counts["AMBIGUOUS"] += 1
+                for row in candidates:
+                    row["eps_period_match_status"] = "AMBIGUOUS"
+                continue
+            if not candidates:
+                counts["UNMATCHED"] += 1
+                continue
+            event_date = _date_value(event_index)
+            days = (event_date - explicit).days if event_date is not None else None
+            if days is None or days < 0 or days > max_days:
+                counts["UNMATCHED"] += 1
+                candidates[0]["eps_period_match_status"] = "UNMATCHED"
+                continue
+            row = candidates[0]
+            row["eps_period_match_status"] = "MATCHED"
+            published = str(event_date.date())
+            has_split = any(explicit.date() < value <= event_date.date()
+                            for value in _normalized_dates(split_dates or []))
+            if has_split:
+                warnings += 1
+                row["eps_continuity_warning"] = "STOCK_SPLIT_IN_PERIOD_WINDOW"
+            elif row.get("basic_eps") is None:
+                row["basic_eps"] = _number(event.get("Reported EPS"))
+                row.update({"filing_date": published, "published_date": published,
+                            "publication_date_known": 1})
+            row.setdefault("field_diagnostics", {})["basic_eps"] = {
+                "status": "WARNING" if has_split else "AVAILABLE",
+                "item_name": "Reported EPS", "reason": row.get("eps_continuity_warning"),
+                "period_match_status": "MATCHED",
+            }
+            counts["MATCHED"] += 1
+    warnings += _mark_eps_continuity_warnings(output, split_dates or [])
+    return output, {
+        "period_match_counts": counts,
+        "period_match_status": ("AMBIGUOUS" if counts["AMBIGUOUS"] else
+                                "MATCHED" if counts["MATCHED"] else "UNMATCHED"),
+        "split_warning_count": warnings,
+    }
+
+
+def _mark_eps_continuity_warnings(rows: list[dict], split_dates: list) -> int:
+    splits = _normalized_dates(split_dates)
+    if not splits:
+        return 0
+    warned = 0
+    ordered = sorted((row for row in rows if row.get("basic_eps") is not None),
+                     key=lambda row: row.get("period_end") or "")
+    for current in ordered:
+        current_end = _date_value(current.get("period_end"))
+        if current_end is None:
+            continue
+        prior = [row for row in ordered if row is not current and
+                 _date_value(row.get("period_end")) is not None and
+                 300 <= (current_end - _date_value(row.get("period_end"))).days <= 430]
+        if not prior:
+            continue
+        previous = min(prior, key=lambda row: abs(
+            (current_end - _date_value(row.get("period_end"))).days - 365))
+        previous_end = _date_value(previous.get("period_end")).date()
+        if any(previous_end < split <= current_end.date() for split in splits):
+            if not current.get("eps_continuity_warning"):
+                warned += 1
+            current["eps_continuity_warning"] = "STOCK_SPLIT_BETWEEN_COMPARABLE_PERIODS"
+            current.setdefault("field_diagnostics", {})["basic_eps"] = {
+                "status": "WARNING", "item_name": "Basic EPS",
+                "reason": current["eps_continuity_warning"],
+                "period_match_status": current.get("eps_period_match_status", "MATCHED"),
+            }
+    return warned
+
+
+def _ticker_split_dates(ticker) -> list:
+    try:
+        actions = ticker.actions
+        if actions is None or actions.empty or "Stock Splits" not in actions.columns:
+            return []
+        return [index for index, value in actions["Stock Splits"].items()
+                if _number(value) not in (None, 0.0)]
+    except Exception:
+        return []
+
+
+def _normalized_dates(values: list) -> list[date]:
+    result = []
+    for value in values:
+        parsed = _date_value(value)
+        if parsed is not None:
+            if parsed.tzinfo is not None:
+                parsed = parsed.tz_convert("Asia/Tokyo")
+            result.append(parsed.date())
+    return result
 
 
 def _label_key(value) -> str:

@@ -2,7 +2,8 @@ import pandas as pd
 
 from engine.config import load_config
 from engine.database import Database
-from engine.data.yahoo import normalize_yahoo_quarterly_statement
+from engine.data.yahoo import (merge_yahoo_reported_eps,
+                               normalize_yahoo_quarterly_statement)
 from engine.quarterly_fundamentals import (normalize_quarterly_records,
                                            quarterly_diagnostic, quarterly_profile)
 
@@ -161,3 +162,58 @@ def test_quarterly_diagnostic_distinguishes_queue_and_source_failure():
     assert item["details"]["next_update_rank"] == 81
     assert item["details"]["source_attempts"]["JQUANTS"] == "JQUANTS_AUTH_ERROR"
     assert "UPDATE_LIMIT_NOT_ATTEMPTED" in item["reason_codes"]
+
+
+def test_yahoo_calendar_eps_without_explicit_period_is_not_ordinally_assigned():
+    rows = [record("2026-06-30", None, 100, 10, source="YAHOO_QUARTERLY")]
+    earnings = pd.DataFrame({"Reported EPS": [30.0]},
+                            index=[pd.Timestamp("2026-08-10")])
+    merged, diagnostics = merge_yahoo_reported_eps(rows, earnings)
+    assert merged[0]["basic_eps"] is None
+    assert diagnostics["period_match_counts"] == {
+        "MATCHED": 0, "AMBIGUOUS": 0, "UNMATCHED": 1}
+
+
+def test_yahoo_calendar_eps_is_used_only_for_an_explicit_exact_period():
+    rows = [record("2026-06-30", None, 100, 10, source="YAHOO_QUARTERLY")]
+    earnings = pd.DataFrame({"Reported EPS": [30.0],
+                             "Period End": [pd.Timestamp("2026-06-30")]},
+                            index=[pd.Timestamp("2026-08-10")])
+    merged, diagnostics = merge_yahoo_reported_eps(rows, earnings)
+    assert merged[0]["basic_eps"] == 30
+    assert merged[0]["eps_period_match_status"] == "MATCHED"
+    assert diagnostics["period_match_counts"]["MATCHED"] == 1
+
+
+def test_stock_split_warning_prevents_eps_growth_signal():
+    cfg = load_config()
+    rows = [record("2025-06-30", 10, 100, 10, source="YAHOO_QUARTERLY"),
+            record("2026-06-30", None, 120, 12, source="YAHOO_QUARTERLY")]
+    earnings = pd.DataFrame({"Reported EPS": [30.0],
+                             "Period End": [pd.Timestamp("2026-06-30")]},
+                            index=[pd.Timestamp("2026-08-10")])
+    merged, _ = merge_yahoo_reported_eps(rows, earnings, [pd.Timestamp("2026-07-15")])
+    profile = quarterly_profile(merged, cfg, "2026-09-01")
+    assert profile["eps_growth"] is None
+    assert "EPS_STOCK_SPLIT_WARNING" in profile["reason_codes"]
+
+
+def test_legacy_yahoo_eps_without_match_metadata_is_not_used():
+    cfg = load_config()
+    rows = [record("2025-06-30", 10, 100, 10, source="YAHOO_QUARTERLY"),
+            record("2026-06-30", 20, 120, 12, source="YAHOO_QUARTERLY")]
+    profile = quarterly_profile(rows, cfg, "2026-09-01")
+    assert profile["eps_growth"] is None
+    assert "EPS_PERIOD_UNMATCHED" in profile["reason_codes"]
+
+
+def test_split_between_comparable_statement_periods_is_flagged():
+    rows = [record("2025-06-30", 10, 100, 10, source="YAHOO_QUARTERLY"),
+            record("2026-06-30", 20, 120, 12, source="YAHOO_QUARTERLY")]
+    for row in rows:
+        row["eps_period_match_status"] = "MATCHED"
+    merged, diagnostics = merge_yahoo_reported_eps(
+        rows, pd.DataFrame(), [pd.Timestamp("2026-01-15")])
+    assert merged[-1]["eps_continuity_warning"] == \
+        "STOCK_SPLIT_BETWEEN_COMPARABLE_PERIODS"
+    assert diagnostics["split_warning_count"] == 1

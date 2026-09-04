@@ -204,3 +204,14 @@ Backfill用途には使用できない。
 Source別試行結果、Fidelity別件数、未試行・試行後未解決を別集計とし、診断分母とランキング分母の
 差は`universe`と`excluded_from_ranking`で明示する。Signal・History・Performance・Control本体の
 export schemaは3.1のままであり、この移行では変更しない。
+
+## 固定入力による公開前ゲート
+
+CIは固定したDB相当の価格・財務入力、基準日、乱数seedからCoreとExperimentalを再計算し、
+Signal / History / Performance / Control / Rankingの正規化ハッシュを照合する。時刻項目だけは
+除外するが、順位、判定、売買シナリオ、対照群の構成が変われば失敗する。GitHub Pages公開は、
+この比較と全pytestの両方が成功した場合にのみ実行する。
+
+基準値更新は仕様変更として扱う。`python scripts/fixed_input_regression.py --update`の実行前に差分を
+確認し、意図した変化以外が含まれないことをレビューする。更新後は通常モードを再実行して同じ
+ハッシュになることを確認する。

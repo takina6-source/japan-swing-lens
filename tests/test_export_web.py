@@ -2,7 +2,7 @@ import math
 
 from engine.config import load_config
 from engine.validation import annual_eps_coverage_summary
-from scripts.export_web import clean, universe_diagnostics
+from scripts.export_web import clean, queue_public_metadata, universe_diagnostics
 
 
 def test_clean_converts_nested_nan_to_json_null():
@@ -50,3 +50,16 @@ def test_universe_diagnostic_explains_denominator_difference():
     assert result["excluded_from_ranking"] == {
         "outside_current_scope": 1, "insufficient_price_history": 1,
         "indicator_preparation_failed": 1, "analysis_or_metadata_error": 0}
+
+
+def test_queue_public_metadata_exposes_only_operational_status():
+    value = queue_public_metadata({"details": {
+        "update_state": "QUEUED_UPDATE_LIMIT", "queue_reason": "UPDATE_LIMIT",
+        "next_update_rank": 31, "last_attempt_at": "2026-09-01T00:00:00+00:00",
+        "next_eligible_at": "2026-09-08", "eligible_sources": ["YAHOO"],
+        "source_attempts": {"YAHOO": "YAHOO_NO_DATA"},
+        "private_exception": "must not be exported",
+    }})
+    assert value["queue_reason"] == "UPDATE_LIMIT"
+    assert value["next_update_rank"] == 31
+    assert "private_exception" not in value

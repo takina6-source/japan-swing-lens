@@ -165,6 +165,8 @@ def earnings_momentum(metrics: dict, cfg: dict, as_of: str = "", code: str = "")
         "period_type": quarterly.get("period_type"),
         "missing": quarterly.get("missing", []),
         "reason_codes": quarterly.get("reason_codes", []),
+        "eps_period_match_status": quarterly.get("eps_period_match_status"),
+        "eps_continuity_warning": quarterly.get("eps_continuity_warning"),
         "stale": stale,
     }
     return ExperimentalResult("EARNINGS", state,

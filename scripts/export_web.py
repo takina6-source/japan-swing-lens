@@ -178,6 +178,10 @@ def export(refresh: bool, scope: str):
     detail_dir = OUT / "details"
     detail_dir.mkdir(exist_ok=True)
     candidates = []
+    annual_diagnostics = {row["code"]: row for row in
+                          db.load_fundamental_diagnostics(list(prepared))}
+    quarterly_diagnostic_map = {row["code"]: row for row in
+                                db.load_quarterly_diagnostics(list(prepared))}
     for item in analyses:
         row_meta = meta.get(item.code, {})
         pivot_results = [result for name, result in item.strategies.items()
@@ -209,6 +213,11 @@ def export(refresh: bool, scope: str):
             "summary": summary_text(item),
             "experimental": experimental[item.code].to_dict(),
             "annual_earnings": clean(fundamentals[item.code].get("annual_eps_profile", {})),
+            "data_update": {
+                "annual_eps": queue_public_metadata(annual_diagnostics.get(item.code, {})),
+                "quarterly_fundamentals": queue_public_metadata(
+                    quarterly_diagnostic_map.get(item.code, {})),
+            },
         }
         candidates.append(candidate)
         detail = {
@@ -316,6 +325,19 @@ def export(refresh: bool, scope: str):
     (OUT / "snapshot.json").write_text(
         json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
     print(f"exported {len(candidates)} stocks as of {snapshot['as_of']}")
+
+
+def queue_public_metadata(row: dict) -> dict:
+    details = row.get("details") or {}
+    return clean({
+        "update_state": details.get("update_state", "UNKNOWN"),
+        "queue_reason": details.get("queue_reason"),
+        "next_update_rank": details.get("next_update_rank"),
+        "last_attempt_at": details.get("last_attempt_at"),
+        "next_eligible_at": details.get("next_eligible_at"),
+        "eligible_sources": details.get("eligible_sources", []),
+        "source_attempts": details.get("source_attempts", {}),
+    })
 
 
 if __name__ == "__main__":

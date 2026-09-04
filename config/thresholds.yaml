@@ -7,6 +7,13 @@ experimental_version: "2026.09-exp-v2-quarterly-earnings"
 experimental_export_schema_version: "2.0"
 experiment_start_date: "2026-09-04"
 free_data:
+  update_queue:
+    cooldown_days:
+      SUCCESS: 7
+      TRANSIENT_FAILURE: 1
+      PERMANENT_FAILURE: 30
+      CONFIGURATION_REQUIRED: 30
+      INSUFFICIENT_DATA: 7
   yahoo_batch_size: 80
   initial_history_period: "2y"
   incremental_period: "10d"
@@ -32,6 +39,7 @@ free_data:
     max_statement_age_days: 200
     enable_jquants: true
     enable_yahoo: true
+    yahoo_eps_match_max_days: 120
 trade_plan:
   entry_zone_above_pivot_pct: 2
   do_not_chase_above_pivot_pct: 5

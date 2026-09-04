@@ -131,6 +131,14 @@ def quarterly_profile(records: list[dict], cfg: dict, as_of: str | None = None) 
         reasons.append("FUTURE_PUBLICATION_EXCLUDED")
     if latest and not latest.get("publication_date_known"):
         reasons.append("PUBLICATION_DATE_UNKNOWN")
+    eps_match_states = {str(row.get("eps_period_match_status") or "MATCHED").upper()
+                        for row in series if row.get("basic_eps") is not None}
+    if "AMBIGUOUS" in eps_match_states:
+        reasons.append("EPS_PERIOD_AMBIGUOUS")
+    if "UNMATCHED" in eps_match_states:
+        reasons.append("EPS_PERIOD_UNMATCHED")
+    if any(row.get("eps_continuity_warning") for row in series):
+        reasons.append("EPS_STOCK_SPLIT_WARNING")
     stale = bool(latest and (pd.Timestamp(as_of_date) - pd.Timestamp(latest["period_end"])).days
                  > int(c.get("max_statement_age_days", 200)))
     if stale:
@@ -160,6 +168,8 @@ def quarterly_profile(records: list[dict], cfg: dict, as_of: str | None = None) 
         "available_from": (latest.get("published_date") or latest.get("filing_date") or
                            latest.get("retrieved_at")) if latest else None,
         "publication_date_known": bool(latest and latest.get("publication_date_known")),
+        "eps_period_match_status": ((latest or {}).get("eps_period_match_status") or "N/A"),
+        "eps_continuity_warning": (latest or {}).get("eps_continuity_warning"),
         "stale": stale,
         "missing": missing, "reason_codes": list(dict.fromkeys(reasons)),
         "field_diagnostics": field_diagnostics,
@@ -219,6 +229,8 @@ def _clean_record(row: dict) -> dict | None:
         return None
     quarter = str(row.get("fiscal_quarter") or f"Q{pd.Timestamp(period_end).quarter}").upper()
     fiscal_year = str(row.get("fiscal_year") or pd.Timestamp(period_end).year)
+    default_eps_match = ("UNMATCHED" if source_family(row.get("source")) == "YAHOO"
+                         and row.get("basic_eps") is not None else "MATCHED")
     out = {
         "code": str(row.get("code") or ""), "fiscal_year": fiscal_year,
         "fiscal_quarter": quarter, "period_start": _date_text(row.get("period_start")),
@@ -232,6 +244,9 @@ def _clean_record(row: dict) -> dict | None:
                                            row.get("published_date") or row.get("filing_date"))),
         "is_derived": int(bool(row.get("is_derived"))),
         "company_forecast": int(bool(row.get("company_forecast"))),
+        "eps_period_match_status": str(row.get("eps_period_match_status") or
+                                         default_eps_match).upper(),
+        "eps_continuity_warning": row.get("eps_continuity_warning"),
     }
     field_diagnostics = row.get("field_diagnostics")
     if not field_diagnostics and row.get("field_diagnostics_json"):
@@ -267,6 +282,9 @@ def _period_growth(current: dict | None, previous: dict | None, cfg: dict) -> di
     output: dict[str, Any] = {}
     turnaround = anomaly = False
     for field in FIELDS:
+        if field == "basic_eps" and not (_eps_usable(previous) and _eps_usable(current)):
+            output[field] = None
+            continue
         before, now = _number(previous.get(field)), _number(current.get(field))
         value, field_turnaround, field_anomaly = _growth(before, now, field, cfg)
         output[field] = value
@@ -275,6 +293,11 @@ def _period_growth(current: dict | None, previous: dict | None, cfg: dict) -> di
     output["turnaround_flag"] = turnaround
     output["anomaly_flag"] = anomaly
     return output
+
+
+def _eps_usable(row: dict) -> bool:
+    return (str(row.get("eps_period_match_status") or "MATCHED").upper() == "MATCHED"
+            and not row.get("eps_continuity_warning"))
 
 
 def _growth(previous: float | None, current: float | None, field: str, cfg: dict):

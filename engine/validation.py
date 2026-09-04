@@ -66,6 +66,10 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
             "attempted_sources": ",".join(row.get("attempted_sources", [])),
             "update_state": details.get("update_state", "UNKNOWN"),
             "next_update_rank": details.get("next_update_rank"),
+            "queue_reason": details.get("queue_reason"),
+            "last_attempt_at": details.get("last_attempt_at"),
+            "next_eligible_at": details.get("next_eligible_at"),
+            "eligible_sources": details.get("eligible_sources", []),
             "source_attempts": details.get("source_attempts", {}),
             "selected_years": details.get("selected_years", []),
             "diagnosed_at": row.get("diagnosed_at"),
@@ -175,6 +179,10 @@ def annual_eps_coverage_summary(rows: list[dict], cfg: dict) -> dict:
     attempted_unresolved = [row for row in unresolved
                             if any(status not in {"NOT_ATTEMPTED", "JQUANTS_NOT_CONFIGURED"}
                                    for status in statuses_for(row).values())]
+    queue_states = Counter(str((row.get("details") or {}).get("update_state") or "UNKNOWN")
+                           for row in unresolved)
+    queue_reasons = Counter(str((row.get("details") or {}).get("queue_reason") or "UNKNOWN")
+                            for row in unresolved)
     return {
         "total": len(rows),
         "complete_4y": sum(value >= preferred for value in years),
@@ -189,6 +197,8 @@ def annual_eps_coverage_summary(rows: list[dict], cfg: dict) -> dict:
         "source_retry_candidates": len(retry_candidates),
         "source_attempt_eligible": len(unresolved),
         "unresolved_after_attempts": len(attempted_unresolved),
+        "queue_state_breakdown": dict(queue_states),
+        "queue_reason_breakdown": dict(queue_reasons),
         "fallback_used": sum(bool(row.get("fallback_used")) for row in rows),
         "initial_usable_3y_plus": sum(int(row.get("initial_years") or 0) >= minimum
                                       for row in rows),

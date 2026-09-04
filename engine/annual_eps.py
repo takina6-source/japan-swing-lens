@@ -178,7 +178,11 @@ def annual_eps_profile(rows: list[dict[str, Any]], minimum_years: int = 3,
 def diagnostic_row(code: str, profile: dict[str, Any], initial_years: int,
                    attempted: list[str] | None = None, *, update_state: str = "CURRENT",
                    next_update_rank: int | None = None,
-                   source_attempts: dict[str, str] | None = None) -> dict[str, Any]:
+                   source_attempts: dict[str, str] | None = None,
+                   queue_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    queue_details = dict(queue_metadata or {})
+    queue_details.setdefault("update_state", update_state)
+    queue_details.setdefault("next_update_rank", next_update_rank)
     return {
         "code": code,
         "status": profile["status"],
@@ -192,8 +196,7 @@ def diagnostic_row(code: str, profile: dict[str, Any], initial_years: int,
         "attempted_sources": attempted or [],
         "details": {
             "conflicts": profile.get("conflicts", []),
-            "update_state": update_state,
-            "next_update_rank": next_update_rank,
+            **queue_details,
             "source_attempts": source_attempts or {},
             "selected_years": [{
                 "fiscal_year": row.get("fiscal_year"),

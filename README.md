@@ -173,3 +173,22 @@ Coreランキング、Core Consensus、Turtle、Sector RSには影響しませ�
 この変更は診断用JSON／CSVと画面ラベルだけを対象とし、Signal、Control、Performance、Core順位の
 schemaと計算結果は変更しません。診断対象とランキング対象の件数が違う場合は、価格履歴不足などの
 除外理由を`universe.excluded_from_ranking`へ集計します。
+
+## 公平な財務更新・Yahoo EPS・固定入力CI
+
+無料取得枠を一部の強い銘柄だけが占有しないよう、年次EPSと四半期財務は
+`未試行 → 最終試行が古い → 取得済み期間が少ない → Momentum（同条件時のみ）`で更新します。
+銘柄・データ種別・Sourceごとの結果は`data_update_attempts`へ保存し、一時失敗は1日、成功と
+データ不足は7日、解析不能と設定不足は30日の再試行間隔を設けます。銘柄詳細では待機理由、
+最終試行日、次回試行可能日を確認できます。
+
+YahooのReported EPSは、イベント側に明示的な期末日があり、損益計算書の期末日と一意に一致し、
+発表日が期末から120日以内の場合だけ補完します。表示順では割り当てません。`AMBIGUOUS`、
+`UNMATCHED`、株式分割警告付きEPSは強い業績シグナルに使いません。
+
+GitHub Actionsでは全pytestに加えて`python scripts/fixed_input_regression.py`を実行します。固定した
+基準日、価格seed、財務入力、Control seedからCore/ExperimentalのSignal、History、Performance、
+Control、Rankingを再生成し、`tests/fixtures/fixed_input/manifest.json`のSHA-256と比較します。
+許可済み時刻項目以外が変わると公開処理は開始されません。仕様変更として基準値を更新する場合は、
+差分を確認したうえで`python scripts/fixed_input_regression.py --update`を実行し、通常モードでもう一度
+安定して一致することを確認してください。

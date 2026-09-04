@@ -95,6 +95,11 @@ class Database:
               attempted_sources_json TEXT, details_json TEXT,
               diagnosed_at TEXT, logic_version TEXT,
               updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS data_update_attempts (
+              code TEXT, data_kind TEXT, source TEXT, last_attempt_at TEXT,
+              outcome TEXT, reason_code TEXT, next_eligible_at TEXT,
+              attempt_count INTEGER DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY(code,data_kind,source));
             CREATE TABLE IF NOT EXISTS setup_registry (
               code TEXT, strategy TEXT, setup_id TEXT, setup_start_date TEXT,
               pivot_price REAL, pivot_type TEXT, pivot_basis TEXT, pivot_fidelity TEXT,
@@ -185,6 +190,8 @@ class Database:
               ON quarterly_fundamentals(code,period_end);
             CREATE INDEX IF NOT EXISTS idx_quarterly_publication
               ON quarterly_fundamentals(code,published_date);
+            CREATE INDEX IF NOT EXISTS idx_update_attempts_due
+              ON data_update_attempts(data_kind,next_eligible_at,last_attempt_at);
             """)
             self._ensure_columns(con, "fundamentals", {
                 "operating_profit_growth": "REAL",
@@ -208,6 +215,8 @@ class Database:
             })
             self._ensure_columns(con, "quarterly_fundamentals", {
                 "field_diagnostics_json": "TEXT",
+                "eps_period_match_status": "TEXT",
+                "eps_continuity_warning": "TEXT",
             })
             self._ensure_columns(con, "signal_history", {
                 "trading_value": "REAL",
@@ -341,7 +350,8 @@ class Database:
                    "filing_date", "published_date", "revenue", "operating_profit",
                    "net_income", "basic_eps", "source", "fidelity", "period_type",
                    "publication_date_known", "retrieved_at", "is_derived", "company_forecast",
-                   "field_diagnostics_json"]
+                   "field_diagnostics_json", "eps_period_match_status",
+                   "eps_continuity_warning"]
         values = []
         for row in rows:
             if not row.get("period_end"):
@@ -355,6 +365,10 @@ class Database:
                                                             row.get("published_date") or row.get("filing_date"))),
                          "is_derived": int(bool(row.get("is_derived"))),
                          "company_forecast": int(bool(row.get("company_forecast"))),
+                         "eps_period_match_status": row.get("eps_period_match_status") or (
+                             "UNMATCHED" if "YAHOO" in str(row.get("source") or source).upper()
+                             and row.get("basic_eps") is not None else "MATCHED"),
+                         "eps_continuity_warning": row.get("eps_continuity_warning"),
                          "field_diagnostics_json": json.dumps(
                              row.get("field_diagnostics", {}), ensure_ascii=False)})
             values.append([item.get(column) for column in columns])
@@ -384,6 +398,36 @@ class Database:
                     except json.JSONDecodeError:
                         item["field_diagnostics"] = {}
                     result.setdefault(row["code"], []).append(item)
+        return result
+
+    def save_update_attempt(self, row: dict):
+        with self.connect() as con:
+            con.execute("""INSERT INTO data_update_attempts
+            (code,data_kind,source,last_attempt_at,outcome,reason_code,next_eligible_at,attempt_count)
+            VALUES(?,?,?,?,?,?,?,1)
+            ON CONFLICT(code,data_kind,source) DO UPDATE SET
+              last_attempt_at=excluded.last_attempt_at,
+              outcome=excluded.outcome,
+              reason_code=excluded.reason_code,
+              next_eligible_at=excluded.next_eligible_at,
+              attempt_count=data_update_attempts.attempt_count+1,
+              updated_at=CURRENT_TIMESTAMP""", (
+                row["code"], row["data_kind"], row["source"], row["last_attempt_at"],
+                row["outcome"], row["reason_code"], row["next_eligible_at"]))
+
+    def load_update_attempts(self, data_kind: str,
+                             codes: list[str] | None = None) -> dict[str, list[dict]]:
+        query, args = "SELECT * FROM data_update_attempts WHERE data_kind=?", [data_kind.upper()]
+        if codes:
+            query += f" AND code IN ({','.join('?' for _ in codes)})"
+            args.extend(codes)
+        query += " ORDER BY code,source"
+        with self.connect() as con:
+            con.row_factory = sqlite3.Row
+            rows = [dict(row) for row in con.execute(query, args)]
+        result: dict[str, list[dict]] = {code: [] for code in (codes or [])}
+        for row in rows:
+            result.setdefault(row["code"], []).append(row)
         return result
 
     def save_quarterly_diagnostic(self, row: dict, logic_version: str):
