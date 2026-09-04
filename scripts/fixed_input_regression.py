@@ -154,6 +154,9 @@ def _write(path: Path, value) -> None:
 def _hash(path: Path) -> str:
     value = json.loads(path.read_text(encoding="utf-8"))
     normalized = _normalize(value)
+    if isinstance(normalized, list) and path.name != "ranking.json":
+        normalized.sort(key=lambda item: json.dumps(
+            item, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
     payload = json.dumps(normalized, ensure_ascii=False, sort_keys=True,
                          separators=(",", ":"), allow_nan=False).encode()
     return hashlib.sha256(payload).hexdigest()
@@ -165,6 +168,10 @@ def _normalize(value):
                 if key not in {"generated_at", "created_at", "updated_at", "diagnosed_at"}}
     if isinstance(value, list):
         return [_normalize(item) for item in value]
+    if isinstance(value, float):
+        # Pandas/NumPy patch releases can differ below the economically meaningful
+        # precision. Four decimals still catches a 0.01 percentage-point change.
+        return round(value, 4)
     return value
 
 
@@ -180,6 +187,7 @@ def main() -> int:
                                          "price_seed": "ticker-code",
                                          "control_seed": "production-deterministic"})
         _write(MANIFEST, {"schema_version": "1.0", "artifacts": hashes,
+                          "numeric_precision_decimals": 4,
                           "ignored_fields": ["generated_at", "created_at",
                                              "updated_at", "diagnosed_at"]})
         print(f"updated {MANIFEST}")
