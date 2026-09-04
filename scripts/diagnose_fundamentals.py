@@ -27,16 +27,16 @@ def main() -> None:
               f"原因={row.get('reason_code') or '-'}")
     total_na = sum(int(row.get("years_available") or 0) < 3 for row in rows)
     unresolved = [row for row in rows if int(row.get("years_available") or 0) < 3]
-    yahoo_fixable = [row for row in unresolved
-                     if "YAHOO" not in row.get("attempted_sources", [])]
-    still_unresolved = [row for row in unresolved
-                        if "YAHOO" in row.get("attempted_sources", [])]
+    retry_candidates = [row for row in unresolved
+                        if (row.get("details") or {}).get("update_state")
+                        == "QUEUED_UPDATE_LIMIT"]
+    attempted_unresolved = [row for row in unresolved
+                            if (row.get("details") or {}).get("source_attempts")]
     print("集計:", {
         "total_na": total_na,
-        "edinet_fixable": sum("EDINET" in str(row.get("reason_codes")) for row in unresolved),
-        "jquants_fixable": sum("JQUANTS" in str(row.get("reason_codes")) for row in unresolved),
-        "yahoo_fixable": len(yahoo_fixable),
-        "still_unresolved": len(still_unresolved),
+        "source_retry_candidates": len(retry_candidates),
+        "source_attempt_eligible": len(unresolved),
+        "unresolved_after_attempts": len(attempted_unresolved),
     })
 
 

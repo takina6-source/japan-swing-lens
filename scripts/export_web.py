@@ -51,6 +51,27 @@ def clean(value):
     return value
 
 
+def universe_diagnostics(diagnostic_codes: set[str], scope_codes: set[str],
+                         raw_codes: set[str], prepared_codes: set[str],
+                         ranked_codes: set[str]) -> dict:
+    excluded = {
+        "outside_current_scope": len(diagnostic_codes - scope_codes),
+        "insufficient_price_history": len((diagnostic_codes & scope_codes) - raw_codes),
+        "indicator_preparation_failed": len((diagnostic_codes & raw_codes) - prepared_codes),
+        "analysis_or_metadata_error": len((diagnostic_codes & prepared_codes) - ranked_codes),
+    }
+    return {
+        "diagnostic_total": len(diagnostic_codes),
+        "ranked_total": len(ranked_codes),
+        "excluded_total": max(0, len(diagnostic_codes) - len(ranked_codes)),
+        "excluded_from_ranking": excluded,
+        "definitions": {
+            "diagnostic_total": "Annual EPS診断レコードがある銘柄数",
+            "ranked_total": "価格履歴と指標計算を通過し、現在ランキングされた銘柄数",
+        },
+    }
+
+
 def cached_scan(db: Database, scope: str):
     master = select_scope(db.load_securities(), scope)
     names = {row["code"]: row["name"] for row in master}
@@ -255,16 +276,38 @@ def export(refresh: bool, scope: str):
         state = experimental[code].results["EARNINGS"].state
         earnings_states[state] = earnings_states.get(state, 0) + 1
     snapshot["quarterly_fundamentals"] = {
-        "successful_stocks": sum((fundamentals[code].get("quarterly_earnings") or {}).get(
+        "records_available_stocks": sum((fundamentals[code].get("quarterly_earnings") or {}).get(
             "quarters_available", 0) > 0 for code in prepared),
-        "coverage_distribution": coverage_distribution,
+        "indicator_coverage_distribution": coverage_distribution,
+        "coverage_definition": "最新YoY・加速の4指標（EPS、売上、営業利益、EPS加速）の取得率",
         "source_distribution": source_distribution,
         "earnings_states": earnings_states,
         "diagnostics_files": ["data/quarterly_diagnostics.json",
                               "data/quarterly_diagnostics.csv"],
     }
     validation = export_validation(db, ROOT / "public" / "dashboard" / "validation", cfg)
+    diagnostic_codes = {row["code"] for row in db.load_fundamental_diagnostics()}
+    scope_codes = {row["code"] for row in select_scope(db.load_securities(), scope)}
+    raw_codes, prepared_codes = set(raw), set(prepared)
+    ranked_codes = {item.code for item in analyses}
+    universe = universe_diagnostics(diagnostic_codes, scope_codes, raw_codes,
+                                    prepared_codes, ranked_codes)
+    validation["universe"] = universe
+    (ROOT / "public" / "dashboard" / "validation" / "index.json").write_text(
+        json.dumps(validation, ensure_ascii=False, separators=(",", ":"), allow_nan=False),
+        encoding="utf-8")
     snapshot["validation"] = validation
+    snapshot["data_quality"] = {
+        "schema_version": "2.0",
+        "annual_eps_coverage": validation["annual_eps_coverage"],
+        "universe": universe,
+        "fidelity_definitions": {
+            "STRICT": "公式開示の標準項目で必要年数を完全取得",
+            "PRACTICAL": "公式補完・Yahoo等を含む実用可能データ",
+            "PROXY": "公表日等に制約がある参考データ。取得日以降のみ使用",
+            "N/A": "判定に必要なデータが不足",
+        },
+    }
     experiment = export_experimental(
         db, ROOT / "public" / "dashboard" / "experimental", cfg)
     snapshot["experimental_validation"] = experiment

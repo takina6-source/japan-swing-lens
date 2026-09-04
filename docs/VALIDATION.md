@@ -195,3 +195,12 @@ Experimental SummaryはVersionを混在させず、EarningsについてState、C
 `/data/quarterly_diagnostics.json`とCSVには銘柄別Coverage、取得Source、比較可能期数、欠損理由、
 試行Sourceを出力する。Yahooの公表日不明値は取得日以前の過去Signalへ利用しないため、厳密な過去
 Backfill用途には使用できない。
+
+## 診断schema 2.0
+
+`validation/index.json`のAnnual EPS集計は、4期完全取得を`complete_4y`、3期以上の利用可能数を
+`usable_3y_plus`、3期のみを`partial_3y`、3期未満を`insufficient_under_3y`として分離する。
+旧`before_complete`／`after_complete`および`*_fixable`は意味が曖昧なため新規出力から削除した。
+Source別試行結果、Fidelity別件数、未試行・試行後未解決を別集計とし、診断分母とランキング分母の
+差は`universe`と`excluded_from_ranking`で明示する。Signal・History・Performance・Control本体の
+export schemaは3.1のままであり、この移行では変更しない。

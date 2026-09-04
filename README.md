@@ -161,3 +161,15 @@ Experimental Earnings Momentumは`2026.09-exp-v2-quarterly-earnings`から、CAN
 EPS・売上・営業利益の前年同期比とEPS加速を四半期データから計算し、欠損はN/AのままCoverageへ
 反映します。赤字から黒字への転換と極端な成長率は通常成長から分離します。この追加チェックは
 Coreランキング、Core Consensus、Turtle、Sector RSには影響しません。
+
+## データ品質表示（診断schema 2.0）
+
+年次EPSのCoverageは、`complete_4y`（4期を完全取得）と
+`usable_3y_plus`（CAN SLIM Aの判定に使える3期以上）を分離しています。
+従来の`before_complete`／`after_complete`は3期以上も「complete」と表現していたため廃止しました。
+取得成功を保証するように見える`*_fixable`も廃止し、未試行候補、試行対象、試行後も未解決の件数を
+`source_retry_candidates`、`source_attempt_eligible`、`unresolved_after_attempts`で表します。
+
+この変更は診断用JSON／CSVと画面ラベルだけを対象とし、Signal、Control、Performance、Core順位の
+schemaと計算結果は変更しません。診断対象とランキング対象の件数が違う場合は、価格履歴不足などの
+除外理由を`universe.excluded_from_ranking`へ集計します。

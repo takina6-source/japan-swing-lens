@@ -4,7 +4,7 @@ import csv
 import json
 import math
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -53,6 +53,7 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
     names = {row["code"]: row.get("name", "") for row in db.load_securities()}
     diagnostics = []
     for row in diagnostic_raw:
+        details = row.get("details") or {}
         diagnostics.append({
             "code": row["code"], "name": names.get(row["code"], ""),
             "status": row.get("status"), "fidelity": row.get("fidelity"),
@@ -63,10 +64,20 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
             "reason_code": row.get("reason_code"),
             "reason_codes": ",".join(row.get("reason_codes", [])),
             "attempted_sources": ",".join(row.get("attempted_sources", [])),
+            "update_state": details.get("update_state", "UNKNOWN"),
+            "next_update_rank": details.get("next_update_rank"),
+            "source_attempts": details.get("source_attempts", {}),
+            "selected_years": details.get("selected_years", []),
             "diagnosed_at": row.get("diagnosed_at"),
             "logic_version": row.get("logic_version"),
         })
-    _write_csv(output / "fundamental_diagnostics.csv", diagnostics)
+    diagnostics_csv = [{**row,
+                        "source_attempts": json.dumps(row["source_attempts"], ensure_ascii=False,
+                                                      separators=(",", ":")),
+                        "selected_years": json.dumps(row["selected_years"], ensure_ascii=False,
+                                                     separators=(",", ":"))}
+                       for row in diagnostics]
+    _write_csv(output / "fundamental_diagnostics.csv", diagnostics_csv)
     _write_json(output / "fundamental_diagnostics.json", diagnostics)
     for name, rows in (("signals", signals), ("signal_history", history),
                        ("performance", performance), ("controls", controls),
@@ -98,22 +109,7 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
         "control_performance.json", "summary.csv", "summary.json",
         "fundamental_diagnostics.csv", "fundamental_diagnostics.json",
     ]
-    minimum_years = int(cfg["free_data"]["annual_eps"]["minimum_years"])
-    before_complete = sum(int(row.get("initial_years") or 0) >= minimum_years
-                          for row in diagnostic_raw)
-    after_complete = sum(int(row.get("years_available") or 0) >= minimum_years
-                         for row in diagnostic_raw)
-    unresolved = [row for row in diagnostic_raw
-                  if int(row.get("years_available") or 0) < minimum_years]
-    yahoo_fixable = [row for row in unresolved
-                     if "YAHOO" not in row.get("attempted_sources", [])]
-    still_unresolved = [row for row in unresolved
-                        if "YAHOO" in row.get("attempted_sources", [])]
-    source_usage = defaultdict(int)
-    for row in diagnostic_raw:
-        for part in str(row.get("source_summary") or "").split(" + "):
-            if part and part != "N/A":
-                source_usage[part.split()[0]] += 1
+    coverage = annual_eps_coverage_summary(diagnostic_raw, cfg)
     index = {
         "generated_at": generated,
         "schema_version": cfg["export_schema_version"],
@@ -128,21 +124,8 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
         "control_performance_count": len(control_performance),
         "summary_count": len(summary_rows),
         "fundamental_diagnostics_count": len(diagnostics),
-        "annual_eps_coverage": {
-            "before_complete": before_complete,
-            "after_complete": after_complete,
-            "improved": after_complete - before_complete,
-            "total": len(diagnostic_raw),
-            "total_na": len(unresolved),
-            "edinet_fixable": sum(any("EDINET" in reason for reason in row.get("reason_codes", []))
-                                  for row in unresolved),
-            "jquants_fixable": sum(any("JQUANTS" in reason for reason in row.get("reason_codes", []))
-                                   for row in unresolved),
-            "yahoo_fixable": len(yahoo_fixable),
-            "still_unresolved": len(still_unresolved),
-            "fallback_used": sum(bool(row.get("fallback_used")) for row in diagnostic_raw),
-            "source_usage": dict(source_usage),
-        },
+        "diagnostic_schema_version": "2.0",
+        "annual_eps_coverage": coverage,
         "observation_start": min(dates + observation_dates) if dates or observation_dates else None,
         "observation_end": max(dates + observation_dates) if dates or observation_dates else None,
         "available_files": available,
@@ -156,6 +139,60 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
     }
     _write_json(output / "index.json", index)
     return index
+
+
+def annual_eps_coverage_summary(rows: list[dict], cfg: dict) -> dict:
+    minimum = int(cfg["free_data"]["annual_eps"]["minimum_years"])
+    preferred = int(cfg["free_data"]["annual_eps"]["preferred_years"])
+    years = [int(row.get("years_available") or 0) for row in rows]
+    source_stock_counts: Counter[str] = Counter()
+    source_attempt_status: dict[str, Counter[str]] = defaultdict(Counter)
+    for row in rows:
+        for part in str(row.get("source_summary") or "").split(" + "):
+            if part and part != "N/A":
+                source_stock_counts[part.split()[0]] += 1
+        details = row.get("details") or {}
+        statuses = dict(details.get("source_attempts") or {})
+        attempted = set(row.get("attempted_sources") or [])
+        for source in ("EDINET", "JQUANTS", "YAHOO"):
+            statuses.setdefault(source, "UNKNOWN_LEGACY" if source in attempted else "NOT_ATTEMPTED")
+        for source, status in statuses.items():
+            source_attempt_status[str(source)][str(status)] += 1
+    status_breakdown = Counter(str(row.get("status") or "UNKNOWN") for row in rows)
+    fidelity_breakdown = Counter(str(row.get("fidelity") or "N/A") for row in rows)
+    unresolved = [row for row, count in zip(rows, years) if count < minimum]
+    def statuses_for(row):
+        details = row.get("details") or {}
+        values = dict(details.get("source_attempts") or {})
+        attempted = set(row.get("attempted_sources") or [])
+        for source in ("EDINET", "JQUANTS", "YAHOO"):
+            values.setdefault(source, "UNKNOWN_LEGACY" if source in attempted else "NOT_ATTEMPTED")
+        return values
+    retry_candidates = [row for row in unresolved
+                        if (row.get("details") or {}).get("update_state")
+                        == "QUEUED_UPDATE_LIMIT"
+                        or "NOT_ATTEMPTED" in statuses_for(row).values()]
+    attempted_unresolved = [row for row in unresolved
+                            if any(status not in {"NOT_ATTEMPTED", "JQUANTS_NOT_CONFIGURED"}
+                                   for status in statuses_for(row).values())]
+    return {
+        "total": len(rows),
+        "complete_4y": sum(value >= preferred for value in years),
+        "usable_3y_plus": sum(value >= minimum for value in years),
+        "partial_3y": sum(minimum <= value < preferred for value in years),
+        "insufficient_under_3y": sum(value < minimum for value in years),
+        "status_breakdown": dict(status_breakdown),
+        "source_stock_counts": dict(source_stock_counts),
+        "fidelity_breakdown": dict(fidelity_breakdown),
+        "source_attempt_status": {key: dict(value)
+                                  for key, value in source_attempt_status.items()},
+        "source_retry_candidates": len(retry_candidates),
+        "source_attempt_eligible": len(unresolved),
+        "unresolved_after_attempts": len(attempted_unresolved),
+        "fallback_used": sum(bool(row.get("fallback_used")) for row in rows),
+        "initial_usable_3y_plus": sum(int(row.get("initial_years") or 0) >= minimum
+                                      for row in rows),
+    }
 
 
 def _signal_row(row: dict, cfg: dict) -> dict:
