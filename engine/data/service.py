@@ -10,7 +10,7 @@ from .jpx import JPXUniverseProvider, select_scope
 from ..database import Database
 from ..config import load_config
 from ..annual_eps import (annual_eps_profile, diagnostic_row, resolve_with_fallback,
-                          source_family)
+                          source_family, update_queue_metadata)
 from ..quarterly_fundamentals import quarterly_diagnostic, quarterly_profile
 
 log = logging.getLogger(__name__)
@@ -97,13 +97,24 @@ class DataService:
         preferred = int(annual_cfg["preferred_years"])
         conflict_pct = float(annual_cfg["conflict_pct"])
         annual_cache = self.db.load_annual_eps(list(frames))
+        previous_annual_diagnostics = {
+            row["code"]: row for row in self.db.load_fundamental_diagnostics(list(frames))}
         initial_profiles = {code: annual_eps_profile(annual_cache.get(code, []), minimum,
                                                      preferred, conflict_pct)
                             for code in frames}
         missing_annual = [code for code, profile in initial_profiles.items()
                           if profile["years_available"] < minimum]
-        attempts: dict[str, list[str]] = {code: [] for code in frames}
-        reasons: dict[str, list[str]] = {code: [] for code in frames}
+        attempts: dict[str, list[str]] = {
+            code: list(previous_annual_diagnostics.get(code, {}).get("attempted_sources") or [])
+            for code in frames}
+        reasons: dict[str, list[str]] = {
+            code: [reason for reason in
+                   (previous_annual_diagnostics.get(code, {}).get("reason_codes") or [])
+                   if reason not in {"INSUFFICIENT_TOTAL_YEARS", "UPDATE_LIMIT_NOT_ATTEMPTED"}]
+            for code in frames}
+        source_attempts: dict[str, dict[str, str]] = {
+            code: dict((previous_annual_diagnostics.get(code, {}).get("details") or {}).get(
+                "source_attempts") or {}) for code in frames}
         jq = None
         jq_key = jquants_key or os.getenv("JQUANTS_API_KEY")
         for code in missing_annual:
@@ -112,12 +123,21 @@ class DataService:
                                 if source_family(r.get("source")).startswith("EDINET")})
             reasons[code].append("EDINET_NOT_FOUND" if edinet_years == 0
                                  else "EDINET_INSUFFICIENT_YEARS")
+            if "EDINET" not in attempts[code]:
+                attempts[code].append("EDINET")
+            source_attempts[code]["EDINET"] = ("EDINET_NOT_FOUND" if edinet_years == 0
+                                                   else "EDINET_INSUFFICIENT_YEARS")
             if annual_cfg.get("enable_jquants_fallback", True) and not jq_key:
                 reasons[code].append("JQUANTS_NOT_CONFIGURED")
+                if "JQUANTS" not in attempts[code]:
+                    attempts[code].append("JQUANTS")
+                source_attempts[code]["JQUANTS"] = "JQUANTS_NOT_CONFIGURED"
+        queue = {}
         if missing_annual:
             limit = int(cfg["free_data"]["annual_eps_updates_per_run"])
             # 強い銘柄から順に補完し、毎回少数ずつ自動でCoverageを広げる。
             missing_annual.sort(key=lambda code: _momentum(frames[code]), reverse=True)
+            queue = update_queue_metadata(missing_annual, limit)
             for code in missing_annual[:limit]:
                 fetchers = []
                 if annual_cfg.get("enable_jquants_fallback", True) and jq_key:
@@ -133,11 +153,15 @@ class DataService:
                 resolved = resolve_with_fallback(
                     annual_cache.get(code, []), fetchers, minimum, preferred,
                     conflict_pct, reasons[code])
-                attempts[code] = resolved["attempted_sources"]
+                attempts[code] = list(dict.fromkeys([*attempts[code],
+                                                     *resolved["attempted_sources"]]))
                 reasons[code] = resolved["reason_codes"]
+                source_attempts[code].update(resolved["source_attempts"])
                 if resolved["added_records"]:
                     self.db.save_annual_eps(code, resolved["added_records"], "Annual EPS fallback")
                 errors.extend(f"{code}: 年次EPS {message}" for message in resolved["errors"])
+            for code in missing_annual[limit:]:
+                reasons[code].append("UPDATE_LIMIT_NOT_ATTEMPTED")
             annual_cache = self.db.load_annual_eps(list(frames))
         profiles = {code: annual_eps_profile(annual_cache.get(code, []), minimum,
                                              preferred, conflict_pct, reasons[code])
@@ -145,7 +169,11 @@ class DataService:
         if annual_cfg.get("diagnostics", True):
             for code, profile in profiles.items():
                 row = diagnostic_row(code, profile,
-                                     initial_profiles[code]["years_available"], attempts[code])
+                                     initial_profiles[code]["years_available"], attempts[code],
+                                     update_state=queue.get(code, {}).get(
+                                         "update_state", "CURRENT"),
+                                     next_update_rank=queue.get(code, {}).get("next_update_rank"),
+                                     source_attempts=source_attempts[code])
                 self.db.save_fundamental_diagnostic(row, cfg["logic_version"])
         quarterly_cfg = cfg["free_data"]["quarterly_fundamentals"]
         quarterly_cache = self.db.load_quarterly_fundamentals(list(frames))

@@ -18,10 +18,21 @@ SOURCE_PRIORITY = {
 REASON_CODES = {
     "EDINET_NOT_FOUND", "EDINET_DOCUMENT_NOT_FOUND", "EDINET_XBRL_NOT_AVAILABLE",
     "EDINET_EPS_TAG_NOT_FOUND", "EDINET_INSUFFICIENT_YEARS", "EDINET_PARSE_ERROR",
-    "JQUANTS_NOT_CONFIGURED", "JQUANTS_AUTH_ERROR", "JQUANTS_NOT_AVAILABLE",
-    "JQUANTS_INSUFFICIENT_HISTORY", "YAHOO_NOT_AVAILABLE", "YAHOO_PARSE_ERROR",
+    "JQUANTS_NOT_CONFIGURED", "JQUANTS_AUTH_ERROR", "JQUANTS_API_ERROR",
+    "JQUANTS_NO_DATA", "JQUANTS_PARSE_ERROR", "JQUANTS_NOT_AVAILABLE",
+    "JQUANTS_INSUFFICIENT_HISTORY", "YAHOO_API_ERROR", "YAHOO_NO_DATA",
+    "YAHOO_NOT_AVAILABLE", "YAHOO_PARSE_ERROR",
     "INSUFFICIENT_TOTAL_YEARS", "DATA_CONFLICT", "INVALID_EPS_VALUE", "UNKNOWN_ERROR",
+    "UPDATE_LIMIT_NOT_ATTEMPTED",
 }
+
+
+class SourceFetchError(RuntimeError):
+    """Provider boundary error carrying only a safe, non-secret reason code."""
+
+    def __init__(self, reason_code: str):
+        super().__init__(reason_code)
+        self.reason_code = reason_code if reason_code in REASON_CODES else "UNKNOWN_ERROR"
 
 
 def source_family(source: str | None) -> str:
@@ -165,7 +176,9 @@ def annual_eps_profile(rows: list[dict[str, Any]], minimum_years: int = 3,
 
 
 def diagnostic_row(code: str, profile: dict[str, Any], initial_years: int,
-                   attempted: list[str] | None = None) -> dict[str, Any]:
+                   attempted: list[str] | None = None, *, update_state: str = "CURRENT",
+                   next_update_rank: int | None = None,
+                   source_attempts: dict[str, str] | None = None) -> dict[str, Any]:
     return {
         "code": code,
         "status": profile["status"],
@@ -177,7 +190,18 @@ def diagnostic_row(code: str, profile: dict[str, Any], initial_years: int,
         "reason_code": profile.get("reason_code"),
         "reason_codes": profile.get("reason_codes", []),
         "attempted_sources": attempted or [],
-        "details": {"conflicts": profile.get("conflicts", [])},
+        "details": {
+            "conflicts": profile.get("conflicts", []),
+            "update_state": update_state,
+            "next_update_rank": next_update_rank,
+            "source_attempts": source_attempts or {},
+            "selected_years": [{
+                "fiscal_year": row.get("fiscal_year"),
+                "source": row.get("source_family") or source_family(row.get("source")),
+                "fidelity": row.get("fidelity") or "N/A",
+                "retrieved_at": row.get("retrieved_at"),
+            } for row in profile.get("records", [])],
+        },
         "diagnosed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
@@ -194,6 +218,7 @@ def resolve_with_fallback(
     attempts: list[str] = []
     reasons = list(initial_reasons or [])
     errors: list[str] = []
+    source_attempts: dict[str, str] = {}
     for name, fetch in fetchers:
         profile = annual_eps_profile(combined, minimum_years, preferred_years,
                                      conflict_pct, reasons, as_of)
@@ -207,22 +232,57 @@ def resolve_with_fallback(
             added.extend(valid)
             current = annual_eps_profile(combined, minimum_years, preferred_years,
                                          conflict_pct, reasons, as_of)
-            if not valid:
-                reasons.append("JQUANTS_NOT_AVAILABLE" if name == "JQUANTS"
-                               else "YAHOO_NOT_AVAILABLE")
+            if not fetched:
+                reason = "JQUANTS_NO_DATA" if name == "JQUANTS" else "YAHOO_NO_DATA"
+                reasons.append(reason)
+                source_attempts[name] = reason
+            elif not valid:
+                reason = "JQUANTS_PARSE_ERROR" if name == "JQUANTS" else "YAHOO_PARSE_ERROR"
+                reasons.append(reason)
+                source_attempts[name] = reason
             elif current["years_available"] < minimum_years and name == "JQUANTS":
                 reasons.append("JQUANTS_INSUFFICIENT_HISTORY")
-        except Exception as exc:
-            message = str(exc).lower()
-            if name == "JQUANTS":
-                reason = ("JQUANTS_AUTH_ERROR" if any(
-                    token in message for token in ("auth", "401", "403", "api key"))
-                          else "JQUANTS_NOT_AVAILABLE")
+                source_attempts[name] = "JQUANTS_INSUFFICIENT_HISTORY"
+            elif current["years_available"] < minimum_years:
+                source_attempts[name] = "INSUFFICIENT_TOTAL_YEARS"
             else:
-                reason = "YAHOO_PARSE_ERROR"
+                source_attempts[name] = "SUCCESS"
+        except Exception as exc:
+            reason = classify_source_error(name, exc)
             reasons.append(reason)
-            errors.append(f"{name}: {exc}")
+            source_attempts[name] = reason
+            # Do not propagate response bodies, credentials, or provider exception text.
+            errors.append(f"{name}: {reason}")
     profile = annual_eps_profile(combined, minimum_years, preferred_years,
                                  conflict_pct, reasons, as_of)
     return {"profile": profile, "added_records": added, "attempted_sources": attempts,
+            "source_attempts": source_attempts,
             "reason_codes": list(dict.fromkeys(reasons)), "errors": errors}
+
+
+def classify_source_error(name: str, exc: Exception) -> str:
+    explicit = getattr(exc, "reason_code", None)
+    if explicit in REASON_CODES:
+        return explicit
+    message = str(exc).lower()
+    source = str(name).upper()
+    if source == "JQUANTS":
+        if any(token in message for token in ("auth", "401", "403", "api key", "unauthorized")):
+            return "JQUANTS_AUTH_ERROR"
+        if any(token in message for token in ("parse", "column", "schema", "format")):
+            return "JQUANTS_PARSE_ERROR"
+        return "JQUANTS_API_ERROR"
+    if any(token in message for token in ("parse", "column", "schema", "format")):
+        return "YAHOO_PARSE_ERROR"
+    return "YAHOO_API_ERROR"
+
+
+def update_queue_metadata(codes: list[str], limit: int) -> dict[str, dict[str, Any]]:
+    """Describe capped refresh work without pretending queued stocks were attempted."""
+    return {
+        code: {
+            "update_state": "SELECTED" if rank <= limit else "QUEUED_UPDATE_LIMIT",
+            "next_update_rank": None if rank <= limit else rank,
+        }
+        for rank, code in enumerate(codes, 1)
+    }

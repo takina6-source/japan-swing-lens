@@ -7,6 +7,7 @@ from functools import lru_cache
 import pandas as pd
 
 from ..config import ROOT
+from ..annual_eps import SourceFetchError
 
 log = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ class YahooProvider:
         row_name = next((name for name in ("Basic EPS", "BasicEPS", "Diluted EPS", "DilutedEPS")
                          if name in statement.index), None)
         if row_name is None:
-            return []
+            raise SourceFetchError("YAHOO_PARSE_ERROR")
         rows = []
         for column, value in statement.loc[row_name].items():
             try:

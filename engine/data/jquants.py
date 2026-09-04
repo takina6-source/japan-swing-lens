@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import pandas as pd
 
+from ..annual_eps import SourceFetchError
+
 
 class JQuantsProvider:
     """J-Quants公式ClientV2を利用する薄い境界層。
@@ -78,7 +80,7 @@ class JQuantsProvider:
                                      "DisclosureDate") if x in raw.columns), None)
         published_col = next((x for x in ("DiscDate", "DisclosureDate") if x in raw.columns), None)
         if not period_col or not eps_col or not date_col:
-            return []
+            raise SourceFetchError("JQUANTS_PARSE_ERROR")
         annual = raw.loc[raw[period_col].astype(str).str.upper().eq("FY")].copy()
         rows = []
         for _, item in annual.iterrows():

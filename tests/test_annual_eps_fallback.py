@@ -7,7 +7,8 @@ import pandas as pd
 import pytest
 
 from engine.annual_eps import (REASON_CODES, annual_eps_profile, diagnostic_row,
-                               merge_annual_eps, normalize_record, resolve_with_fallback)
+                               merge_annual_eps, normalize_record, resolve_with_fallback,
+                               SourceFetchError, update_queue_metadata)
 from engine.config import load_config
 from engine.data.edinet import parse_edinet_csv
 from engine.database import Database
@@ -83,7 +84,44 @@ def test_provider_failure_does_not_stop_later_fallback():
                           ("YAHOO", lambda: [row(2023, 20, "YAHOO"),
                                               row(2024, 30, "YAHOO")])])
     assert result["profile"]["years_available"] == 3
-    assert "JQUANTS_NOT_AVAILABLE" in result["reason_codes"]
+    assert "JQUANTS_API_ERROR" in result["reason_codes"]
+
+
+@pytest.mark.parametrize(("exc", "reason"), [
+    (RuntimeError("401 unauthorized"), "JQUANTS_AUTH_ERROR"),
+    (RuntimeError("temporary outage"), "JQUANTS_API_ERROR"),
+    (SourceFetchError("JQUANTS_PARSE_ERROR"), "JQUANTS_PARSE_ERROR"),
+])
+def test_jquants_failure_reasons_are_distinct_and_safe(exc, reason):
+    result = resolve_with_fallback([], [("JQUANTS", lambda: (_ for _ in ()).throw(exc))])
+    assert result["reason_codes"][0] == reason
+    assert result["source_attempts"] == {"JQUANTS": reason}
+    assert result["errors"] == [f"JQUANTS: {reason}"]
+
+
+def test_no_data_and_invalid_items_are_not_conflated():
+    no_data = resolve_with_fallback([], [("JQUANTS", lambda: [])])
+    invalid = resolve_with_fallback([], [("JQUANTS", lambda: [row(2024, 1, "UNKNOWN")])])
+    assert "JQUANTS_NO_DATA" in no_data["reason_codes"]
+    assert "JQUANTS_PARSE_ERROR" in invalid["reason_codes"]
+
+
+def test_update_limit_queue_is_distinct_from_an_attempted_failure():
+    queue = update_queue_metadata(["1000", "2000", "3000"], 1)
+    assert queue["1000"] == {"update_state": "SELECTED", "next_update_rank": None}
+    assert queue["2000"] == {"update_state": "QUEUED_UPDATE_LIMIT",
+                              "next_update_rank": 2}
+
+
+def test_diagnostic_includes_per_year_provenance_and_queue_state():
+    profile = annual_eps_profile([row(2024, 10, "YAHOO", fidelity="PRACTICAL",
+                                      retrieved_at="2026-09-04")])
+    item = diagnostic_row("1234", profile, 0, ["EDINET", "JQUANTS"],
+                          update_state="QUEUED_UPDATE_LIMIT", next_update_rank=8,
+                          source_attempts={"JQUANTS": "JQUANTS_NOT_CONFIGURED"})
+    assert item["details"]["selected_years"][0]["source"] == "YAHOO"
+    assert item["details"]["selected_years"][0]["fidelity"] == "PRACTICAL"
+    assert item["details"]["next_update_rank"] == 8
 
 
 @pytest.mark.parametrize("bad", [None, "not-a-number", float("inf")])
