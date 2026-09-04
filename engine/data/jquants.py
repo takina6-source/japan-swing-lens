@@ -119,7 +119,7 @@ class JQuantsProvider:
         cols = {key: next((name for name in names if name in raw.columns), None)
                 for key, names in aliases.items()}
         if not cols["period"] or not cols["published_date"]:
-            return []
+            raise SourceFetchError("JQUANTS_PARSE_ERROR")
         rows = []
         for _, record in raw.iterrows():
             period = str(record[cols["period"]]).upper()
@@ -151,6 +151,15 @@ class JQuantsProvider:
             }
             for field in ("revenue", "operating_profit", "net_income", "basic_eps"):
                 item[field] = _number(record[cols[field]]) if cols[field] else None
+            item["field_diagnostics"] = {
+                field: {
+                    "status": "AVAILABLE" if item[field] is not None else "MISSING",
+                    "item_name": cols[field],
+                    "reason": None if item[field] is not None else
+                    ("ITEM_NAME_NOT_FOUND" if not cols[field] else "VALUE_EMPTY_OR_INVALID"),
+                }
+                for field in ("revenue", "operating_profit", "net_income", "basic_eps")
+            }
             if any(item[field] is not None for field in ("revenue", "operating_profit", "net_income", "basic_eps")):
                 rows.append(item)
         return sorted(rows, key=lambda row: (row["period_end"], row["published_date"]))

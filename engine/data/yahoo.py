@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from datetime import date
 from functools import lru_cache
@@ -120,36 +121,11 @@ class YahooProvider:
         ticker = yf.Ticker(f"{code}.T")
         statement = ticker.get_income_stmt(freq="quarterly")
         if statement is None or statement.empty:
+            self.last_quarterly_diagnostics = _missing_field_diagnostics("STATEMENT_EMPTY")
             return []
-        aliases = {
-            "basic_eps": ("Basic EPS", "BasicEPS", "Diluted EPS", "DilutedEPS"),
-            "revenue": ("Total Revenue", "TotalRevenue", "Operating Revenue", "OperatingRevenue"),
-            "operating_profit": ("Operating Income", "OperatingIncome", "Operating Profit", "OperatingProfit"),
-            "net_income": ("Net Income", "NetIncome", "Net Income Common Stockholders",
-                           "NetIncomeCommonStockholders"),
-        }
-        rows_by_metric = {field: next((name for name in names if name in statement.index), None)
-                          for field, names in aliases.items()}
         retrieved = date.today().isoformat()
-        rows = []
-        for column in statement.columns:
-            try:
-                period_end = pd.Timestamp(column)
-            except (TypeError, ValueError):
-                continue
-            item = {
-                "fiscal_year": str(period_end.year),
-                "fiscal_quarter": f"Q{period_end.quarter}",
-                "period_start": None, "period_end": str(period_end.date()),
-                "filing_date": None, "published_date": None,
-                "source": "YAHOO_QUARTERLY", "fidelity": "PROXY",
-                "period_type": "QUARTER", "publication_date_known": 0,
-                "retrieved_at": retrieved, "is_derived": 0,
-            }
-            for field, row_name in rows_by_metric.items():
-                item[field] = _number(statement.at[row_name, column]) if row_name else None
-            if any(item[field] is not None for field in aliases):
-                rows.append(item)
+        rows, field_diagnostics = normalize_yahoo_quarterly_statement(statement, retrieved)
+        self.last_quarterly_diagnostics = field_diagnostics
         # Yahoo's earnings calendar often exposes more EPS observations than the
         # statement endpoint and includes an event date. Align the newest event
         # with the newest statement period, then extend backwards by quarters.
@@ -192,6 +168,97 @@ class YahooProvider:
                             "filing_date": published, "published_date": published,
                             "publication_date_known": 1})
         return sorted(rows, key=lambda row: row["period_end"])
+
+
+QUARTERLY_ALIASES = {
+    "basic_eps": ("Basic EPS", "BasicEPS", "Diluted EPS", "DilutedEPS"),
+    "revenue": ("Total Revenue", "TotalRevenue", "Operating Revenue",
+                "OperatingRevenue", "Revenue", "Net Sales", "NetSales"),
+    "operating_profit": ("Operating Income", "OperatingIncome", "Operating Profit",
+                         "OperatingProfit", "Operating Earnings", "OperatingEarnings"),
+    "net_income": ("Net Income", "NetIncome", "Net Income Common Stockholders",
+                   "NetIncomeCommonStockholders", "Net Income Continuous Operations",
+                   "NetIncomeContinuousOperations"),
+}
+
+
+def normalize_yahoo_quarterly_statement(statement: pd.DataFrame,
+                                         retrieved_at: str) -> tuple[list[dict], dict]:
+    """Normalize either Yahoo statement orientation using fixed, explicit aliases."""
+    if statement is None or statement.empty:
+        return [], _missing_field_diagnostics("STATEMENT_EMPTY")
+    frame = statement.copy()
+    if isinstance(frame.index, pd.MultiIndex):
+        frame.index = [" ".join(str(part) for part in value if str(part) != "")
+                       for value in frame.index]
+    if isinstance(frame.columns, pd.MultiIndex):
+        frame.columns = [next((part for part in value if _date_value(part)), value[-1])
+                         for value in frame.columns]
+    alias_keys = {_label_key(alias) for names in QUARTERLY_ALIASES.values() for alias in names}
+    index_hits = sum(_label_key(value) in alias_keys for value in frame.index)
+    column_hits = sum(_label_key(value) in alias_keys for value in frame.columns)
+    if column_hits > index_hits:
+        frame = frame.transpose()
+        index_hits, column_hits = column_hits, index_hits
+    if index_hits == 0:
+        return [], _missing_field_diagnostics("ITEM_NAME_NOT_FOUND")
+    labels = {_label_key(value): value for value in frame.index}
+    selected = {}
+    diagnostics = {}
+    for field, aliases in QUARTERLY_ALIASES.items():
+        item_name = next((labels[_label_key(alias)] for alias in aliases
+                          if _label_key(alias) in labels), None)
+        selected[field] = item_name
+        diagnostics[field] = ({"status": "AVAILABLE", "item_name": str(item_name),
+                               "reason": None} if item_name is not None else
+                              {"status": "MISSING", "item_name": None,
+                               "reason": "ITEM_NAME_NOT_FOUND"})
+    rows = []
+    for column in frame.columns:
+        period_end = _date_value(column)
+        if period_end is None:
+            continue
+        item_diagnostics = {key: dict(value) for key, value in diagnostics.items()}
+        item = {
+            "fiscal_year": str(period_end.year),
+            "fiscal_quarter": f"Q{period_end.quarter}",
+            "period_start": None, "period_end": str(period_end.date()),
+            "filing_date": None, "published_date": None,
+            "source": "YAHOO_QUARTERLY", "fidelity": "PROXY",
+            "period_type": "QUARTER", "publication_date_known": 0,
+            "retrieved_at": retrieved_at, "is_derived": 0,
+        }
+        for field, row_name in selected.items():
+            value = _number(frame.at[row_name, column]) if row_name is not None else None
+            item[field] = value
+            if row_name is not None and value is None:
+                item_diagnostics[field] = {"status": "MISSING", "item_name": str(row_name),
+                                           "reason": "VALUE_EMPTY_OR_INVALID"}
+        item["field_diagnostics"] = item_diagnostics
+        if any(item[field] is not None for field in QUARTERLY_ALIASES):
+            rows.append(item)
+    if not rows:
+        return [], {field: ({**value, "status": "MISSING",
+                             "reason": value.get("reason") or "NO_VALID_PERIOD_VALUES"})
+                    for field, value in diagnostics.items()}
+    return sorted(rows, key=lambda row: row["period_end"]), diagnostics
+
+
+def _label_key(value) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+
+def _date_value(value) -> pd.Timestamp | None:
+    try:
+        parsed = pd.Timestamp(value)
+        return None if pd.isna(parsed) else parsed
+    except (TypeError, ValueError):
+        return None
+
+
+def _missing_field_diagnostics(reason: str) -> dict:
+    return {field: {"status": "MISSING", "item_name": None, "reason": reason}
+            for field in QUARTERLY_ALIASES}
 
 
 def _pct(value):

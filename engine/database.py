@@ -206,6 +206,9 @@ class Database:
                 "anomaly": "TEXT",
                 "priority": "INTEGER",
             })
+            self._ensure_columns(con, "quarterly_fundamentals", {
+                "field_diagnostics_json": "TEXT",
+            })
             self._ensure_columns(con, "signal_history", {
                 "trading_value": "REAL",
                 "trading_value_ratio": "REAL",
@@ -337,7 +340,8 @@ class Database:
         columns = ["code", "fiscal_year", "fiscal_quarter", "period_start", "period_end",
                    "filing_date", "published_date", "revenue", "operating_profit",
                    "net_income", "basic_eps", "source", "fidelity", "period_type",
-                   "publication_date_known", "retrieved_at", "is_derived", "company_forecast"]
+                   "publication_date_known", "retrieved_at", "is_derived", "company_forecast",
+                   "field_diagnostics_json"]
         values = []
         for row in rows:
             if not row.get("period_end"):
@@ -350,7 +354,9 @@ class Database:
                          "publication_date_known": int(bool(row.get("publication_date_known") or
                                                             row.get("published_date") or row.get("filing_date"))),
                          "is_derived": int(bool(row.get("is_derived"))),
-                         "company_forecast": int(bool(row.get("company_forecast")))})
+                         "company_forecast": int(bool(row.get("company_forecast"))),
+                         "field_diagnostics_json": json.dumps(
+                             row.get("field_diagnostics", {}), ensure_ascii=False)})
             values.append([item.get(column) for column in columns])
         if not values:
             return
@@ -371,7 +377,13 @@ class Database:
                 rows = con.execute(f"""SELECT * FROM quarterly_fundamentals
                     WHERE code IN ({marks}) ORDER BY code,period_end,source""", part)
                 for row in rows:
-                    result.setdefault(row["code"], []).append(dict(row))
+                    item = dict(row)
+                    try:
+                        item["field_diagnostics"] = json.loads(
+                            item.get("field_diagnostics_json") or "{}")
+                    except json.JSONDecodeError:
+                        item["field_diagnostics"] = {}
+                    result.setdefault(row["code"], []).append(item)
         return result
 
     def save_quarterly_diagnostic(self, row: dict, logic_version: str):

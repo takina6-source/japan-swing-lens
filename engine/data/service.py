@@ -10,7 +10,7 @@ from .jpx import JPXUniverseProvider, select_scope
 from ..database import Database
 from ..config import load_config
 from ..annual_eps import (annual_eps_profile, diagnostic_row, resolve_with_fallback,
-                          source_family, update_queue_metadata)
+                          source_family, update_queue_metadata, classify_source_error)
 from ..quarterly_fundamentals import quarterly_diagnostic, quarterly_profile
 
 log = logging.getLogger(__name__)
@@ -200,13 +200,21 @@ class DataService:
             if (needs_data and retry_due) or (not needs_data and stale):
                 refresh_quarterly.append(code)
         refresh_quarterly.sort(key=lambda code: _momentum(frames[code]), reverse=True)
-        quarterly_attempts: dict[str, list[str]] = {code: [] for code in frames}
         limit = int(quarterly_cfg["updates_per_run"])
+        quarterly_queue = update_queue_metadata(refresh_quarterly, limit)
+        quarterly_attempts: dict[str, list[str]] = {
+            code: list(previous_quarterly_diagnostics.get(code, {}).get(
+                "attempted_sources") or []) for code in frames}
+        quarterly_source_attempts: dict[str, dict[str, str]] = {
+            code: dict((previous_quarterly_diagnostics.get(code, {}).get("details") or {}).get(
+                "source_attempts") or {}) for code in frames}
+        quarterly_reasons: dict[str, list[str]] = {code: [] for code in frames}
         for code in refresh_quarterly[:limit]:
             current = list(quarterly_cache.get(code, []))
             if quarterly_cfg.get("enable_jquants", True):
-                if jq_key:
+                if "JQUANTS" not in quarterly_attempts[code]:
                     quarterly_attempts[code].append("JQUANTS")
+                if jq_key:
                     try:
                         if jq is None:
                             from .jquants import JQuantsProvider
@@ -215,40 +223,57 @@ class DataService:
                         if rows:
                             self.db.save_quarterly_fundamentals(code, rows, jq.name)
                             current.extend(rows)
+                            quarterly_source_attempts[code]["JQUANTS"] = "SUCCESS"
                         else:
-                            quarterly_attempts[code].append("JQUANTS_NOT_FOUND")
+                            quarterly_reasons[code].append("JQUANTS_NO_DATA")
+                            quarterly_source_attempts[code]["JQUANTS"] = "JQUANTS_NO_DATA"
                     except Exception as exc:
-                        quarterly_attempts[code].append("JQUANTS_FETCH_ERROR")
-                        errors.append(f"{code}: J-Quants四半期財務 {exc}")
+                        reason = classify_source_error("JQUANTS", exc)
+                        quarterly_reasons[code].append(reason)
+                        quarterly_source_attempts[code]["JQUANTS"] = reason
+                        errors.append(f"{code}: J-Quants四半期財務 {reason}")
                 else:
-                    quarterly_attempts[code].append("JQUANTS_NOT_CONFIGURED")
+                    quarterly_reasons[code].append("JQUANTS_NOT_CONFIGURED")
+                    quarterly_source_attempts[code]["JQUANTS"] = "JQUANTS_NOT_CONFIGURED"
             # EDINET quarterly coverage is not dependable after the disclosure-system change.
-            quarterly_attempts[code].append("EDINET_NOT_AVAILABLE")
+            if "EDINET" not in quarterly_attempts[code]:
+                quarterly_attempts[code].append("EDINET")
+            quarterly_reasons[code].append("EDINET_NOT_AVAILABLE")
+            quarterly_source_attempts[code]["EDINET"] = "EDINET_NOT_AVAILABLE"
             interim = quarterly_profile(current, cfg, as_of_by_code[code])
             if (quarterly_cfg.get("enable_yahoo", True)
                     and interim["coverage"] < float(quarterly_cfg["target_coverage_pct"])):
-                quarterly_attempts[code].append("YAHOO")
+                if "YAHOO" not in quarterly_attempts[code]:
+                    quarterly_attempts[code].append("YAHOO")
                 try:
                     rows = yahoo.quarterly_fundamentals(code)
                     if rows:
                         self.db.save_quarterly_fundamentals(code, rows, yahoo.name)
+                        quarterly_source_attempts[code]["YAHOO"] = "SUCCESS"
                     else:
-                        quarterly_attempts[code].append("YAHOO_NO_QUARTERLY_STATEMENT")
+                        quarterly_reasons[code].append("YAHOO_NO_DATA")
+                        quarterly_source_attempts[code]["YAHOO"] = "YAHOO_NO_DATA"
                 except Exception as exc:
-                    quarterly_attempts[code].append("YAHOO_FETCH_ERROR")
-                    errors.append(f"{code}: Yahoo四半期財務 {exc}")
+                    reason = classify_source_error("YAHOO", exc)
+                    quarterly_reasons[code].append(reason)
+                    quarterly_source_attempts[code]["YAHOO"] = reason
+                    errors.append(f"{code}: Yahoo四半期財務 {reason}")
+        for code in refresh_quarterly[limit:]:
+            quarterly_reasons[code].append("UPDATE_LIMIT_NOT_ATTEMPTED")
         quarterly_cache = self.db.load_quarterly_fundamentals(list(frames))
         quarterly_profiles = {code: quarterly_profile(quarterly_cache.get(code, []), cfg,
                                                        as_of_by_code[code])
                               for code in frames}
         for code, profile in quarterly_profiles.items():
-            attempts_for_diagnostic = (quarterly_attempts[code] or
-                                       (previous_quarterly_diagnostics.get(code, {}).get(
-                                           "attempted_sources") or []))
-            diagnostic = quarterly_diagnostic(code, profile, attempts_for_diagnostic)
+            diagnostic = quarterly_diagnostic(
+                code, profile, quarterly_attempts[code],
+                update_state=quarterly_queue.get(code, {}).get("update_state", "CURRENT"),
+                next_update_rank=quarterly_queue.get(code, {}).get("next_update_rank"),
+                source_attempts=quarterly_source_attempts[code],
+                additional_reasons=quarterly_reasons[code])
             previous_details = (previous_quarterly_diagnostics.get(code, {}).get("details") or {})
             diagnostic["details"]["last_attempt_at"] = (
-                date.today().isoformat() if quarterly_attempts[code]
+                date.today().isoformat() if code in refresh_quarterly[:limit]
                 else previous_details.get("last_attempt_at"))
             self.db.save_quarterly_diagnostic(
                 diagnostic, cfg["logic_version"])

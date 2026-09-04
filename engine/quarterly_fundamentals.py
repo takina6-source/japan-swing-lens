@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from datetime import date
 from typing import Any
@@ -40,9 +41,18 @@ def normalize_quarterly_records(records: list[dict]) -> list[dict]:
             standalone["period_type"] = "QUARTER"
             standalone["is_derived"] = 1
             standalone["basic_eps"] = None
+            standalone["field_diagnostics"] = dict(current.get("field_diagnostics") or {})
+            standalone["field_diagnostics"]["basic_eps"] = {
+                "status": "MISSING", "item_name": None, "reason": "YTD_EPS_NOT_DERIVED"}
             for field in ("revenue", "operating_profit", "net_income"):
                 a, b = _number(current.get(field)), _number(previous.get(field))
                 standalone[field] = a - b if a is not None and b is not None else None
+                standalone["field_diagnostics"][field] = {
+                    "status": "AVAILABLE" if standalone[field] is not None else "MISSING",
+                    "item_name": None,
+                    "reason": "DERIVED_FROM_YTD" if standalone[field] is not None
+                    else "PRIOR_YTD_VALUE_MISSING",
+                }
             derived.append(standalone)
     unique: dict[tuple, dict] = {}
     for row in [*cleaned, *derived]:
@@ -127,6 +137,13 @@ def quarterly_profile(records: list[dict], cfg: dict, as_of: str | None = None) 
         reasons.append("STALE_QUARTERLY_DATA")
     sources = sorted({source_family(row.get("source")) for row in series})
     fidelity = _lowest_fidelity([row.get("fidelity") for row in series])
+    field_diagnostics = dict((latest or {}).get("field_diagnostics") or {})
+    for field in FIELDS:
+        field_diagnostics.setdefault(field, {
+            "status": "AVAILABLE" if latest and latest.get(field) is not None else "MISSING",
+            "item_name": None,
+            "reason": None if latest and latest.get(field) is not None else "VALUE_NOT_AVAILABLE",
+        })
     return {
         "records": series, "quarters_available": len(series), "coverage": coverage,
         "eps_growth": eps, "previous_eps_growth": previous_eps,
@@ -145,10 +162,14 @@ def quarterly_profile(records: list[dict], cfg: dict, as_of: str | None = None) 
         "publication_date_known": bool(latest and latest.get("publication_date_known")),
         "stale": stale,
         "missing": missing, "reason_codes": list(dict.fromkeys(reasons)),
+        "field_diagnostics": field_diagnostics,
     }
 
 
-def quarterly_diagnostic(code: str, profile: dict, attempted_sources: list[str]) -> dict:
+def quarterly_diagnostic(code: str, profile: dict, attempted_sources: list[str], *,
+                         update_state: str = "CURRENT", next_update_rank: int | None = None,
+                         source_attempts: dict[str, str] | None = None,
+                         additional_reasons: list[str] | None = None) -> dict:
     coverage = float(profile.get("coverage") or 0)
     return {
         "code": code,
@@ -158,11 +179,16 @@ def quarterly_diagnostic(code: str, profile: dict, attempted_sources: list[str])
         "fidelity": profile.get("fidelity", "N/A"),
         "latest_period": profile.get("latest_period"),
         "published_date": profile.get("published_date"),
-        "reason_codes": profile.get("reason_codes", []),
+        "reason_codes": list(dict.fromkeys([*profile.get("reason_codes", []),
+                                             *(additional_reasons or [])])),
         "attempted_sources": attempted_sources,
         "details": {"missing": profile.get("missing", []),
                     "period_type": profile.get("period_type"),
-                    "available_from": profile.get("available_from")},
+                    "available_from": profile.get("available_from"),
+                    "field_diagnostics": profile.get("field_diagnostics", {}),
+                    "update_state": update_state,
+                    "next_update_rank": next_update_rank,
+                    "source_attempts": source_attempts or {}},
     }
 
 
@@ -207,6 +233,13 @@ def _clean_record(row: dict) -> dict | None:
         "is_derived": int(bool(row.get("is_derived"))),
         "company_forecast": int(bool(row.get("company_forecast"))),
     }
+    field_diagnostics = row.get("field_diagnostics")
+    if not field_diagnostics and row.get("field_diagnostics_json"):
+        try:
+            field_diagnostics = json.loads(row["field_diagnostics_json"])
+        except (TypeError, json.JSONDecodeError):
+            field_diagnostics = {}
+    out["field_diagnostics"] = field_diagnostics or {}
     for field in FIELDS:
         out[field] = _number(row.get(field))
     if all(out[field] is None for field in FIELDS):
