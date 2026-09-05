@@ -192,3 +192,38 @@ Control、Rankingを再生成し、`tests/fixtures/fixed_input/manifest.json`の
 許可済み時刻項目以外が変わると公開処理は開始されません。仕様変更として基準値を更新する場合は、
 差分を確認したうえで`python scripts/fixed_input_regression.py --update`を実行し、通常モードでもう一度
 安定して一致することを確認してください。
+
+## Investment Committee Integration
+
+将来の「投資委員会」が複数の分析エンジンを比較できるよう、既存のSwing Lens評価を標準化した
+静的JSONを公開します。このAdapterは生成済み結果を転記するだけで、Core/Experimentalの判定、
+ランキング、画面には影響しません。
+
+```json
+{
+  "schema_version": "1.0",
+  "engine": "japan_swing_lens",
+  "engine_version": "2026.09-v8-quarterly-earnings",
+  "ticker": "9244",
+  "evaluation_date": "2026-09-03",
+  "generated_at": "2026-09-05T12:00:00+09:00",
+  "verdict": "SETUP FORMING",
+  "confidence": 0.8,
+  "risk_level": null,
+  "core": {"verdict": "SETUP FORMING", "rank": 1, "consensus": {}, "signals": {}},
+  "experimental": {"alignment": null, "combination": null, "affects_core_ranking": false, "signals": {}},
+  "signals": {"core": {}, "liquidity": {"status": "HIGH"}, "experimental": {}},
+  "metrics": {},
+  "source_status": {"price": {"status": "ok"}, "fundamentals": {"status": "partial"}, "earnings": {"status": "missing"}, "update_diagnostics": {}}
+}
+```
+
+入口は[manifest](https://takina6-source.github.io/japan-swing-lens/committee/manifest.json)、
+[ranking](https://takina6-source.github.io/japan-swing-lens/committee/ranking.json)、
+[JSON Schema](https://takina6-source.github.io/japan-swing-lens/committee/schema.json)です。
+`ticker`は`.T`なしのJPXコード文字列、`evaluation_date`は市場データの評価基準日でありJSON生成日時の
+`generated_at`とは別です。`engine_version`は既存の`logic_version`、形式は`schema_version`で識別します。
+将来のFundamental Lensも同じ識別子・日付・欠損規約のJSONを独立して公開し、Committeeだけが両者を
+読み込む疎結合構成を予定しています。
+キーの意味、欠損、履歴、Fundamental Lensとの整合条件は
+[`docs/investment_committee_interface.md`](docs/investment_committee_interface.md)を参照してください。

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://takina6-source.github.io/japan-swing-lens/committee/schema.json",
+  "title": "Japan Swing Lens Investment Committee Engine Document",
+  "description": "Investment Committee向けにJapan Swing Lensの既存評価を転記する公開インターフェース。",
+  "type": "object",
+  "required": [
+    "schema_version", "engine", "engine_version", "ticker", "company_name",
+    "evaluation_date", "generated_at", "verdict", "confidence", "risk_level",
+    "core", "experimental", "signals", "metrics", "source_status"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "engine": {"type": "string", "const": "japan_swing_lens"},
+    "engine_version": {"type": "string", "minLength": 1},
+    "logic_version": {"type": ["string", "null"]},
+    "config_version": {"type": ["string", "null"]},
+    "strategy_version": {"type": ["string", "null"]},
+    "git_commit": {"type": ["string", "null"]},
+    "ticker": {"type": "string", "pattern": "^[0-9A-Z]{4,6}$"},
+    "provider_ticker": {"type": ["string", "null"]},
+    "company_name": {"type": "string"},
+    "evaluation_date": {"type": "string", "format": "date"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "verdict": {"type": ["string", "null"]},
+    "confidence": {"type": ["string", "number", "null"]},
+    "risk_level": {"type": ["string", "null"]},
+    "core": {
+      "type": "object",
+      "required": ["verdict", "rank", "consensus", "signals"],
+      "properties": {
+        "verdict": {"type": ["string", "null"]},
+        "rank": {"type": "integer", "minimum": 1},
+        "consensus": {"type": "object"},
+        "signals": {"$ref": "#/$defs/signalMap"}
+      },
+      "additionalProperties": true
+    },
+    "experimental": {
+      "type": "object",
+      "required": ["alignment", "combination", "affects_core_ranking", "signals"],
+      "properties": {
+        "alignment": {"type": ["string", "number", "null"]},
+        "combination": {"type": ["string", "null"]},
+        "affects_core_ranking": {"type": "boolean", "const": false},
+        "signals": {"$ref": "#/$defs/signalMap"}
+      },
+      "additionalProperties": true
+    },
+    "signals": {
+      "type": "object",
+      "required": ["core", "liquidity", "experimental"],
+      "properties": {
+        "core": {"$ref": "#/$defs/signalMap"},
+        "liquidity": {"$ref": "#/$defs/signal"},
+        "experimental": {"$ref": "#/$defs/signalMap"}
+      },
+      "additionalProperties": true
+    },
+    "metrics": {"type": "object"},
+    "source_status": {
+      "type": "object",
+      "required": ["price", "fundamentals", "earnings", "update_diagnostics"],
+      "properties": {
+        "price": {"$ref": "#/$defs/sourceStatus"},
+        "fundamentals": {"$ref": "#/$defs/sourceStatus"},
+        "earnings": {"$ref": "#/$defs/sourceStatus"},
+        "update_diagnostics": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "validation_reference": {"type": "object"}
+  },
+  "$defs": {
+    "signalMap": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/signal"}
+    },
+    "signal": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {"type": ["string", "number", "null"]},
+        "positive": {"type": ["boolean", "null"]},
+        "value": {},
+        "reason": {"type": ["string", "null"]},
+        "coverage": {"type": ["number", "null"]},
+        "fidelity": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "sourceStatus": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["ok", "partial", "missing"]},
+        "source": {"type": ["string", "null"]},
+        "fidelity": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
