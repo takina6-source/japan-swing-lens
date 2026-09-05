@@ -20,14 +20,14 @@ def test_beginner_view_keeps_original_investment_terms():
         assert original in script
 
 
-def test_dashboard_has_help_interpretations_and_view_switch():
+def test_dashboard_has_help_and_view_switch_without_inline_interpretations():
     script = (DASHBOARD / "app.js").read_text(encoding="utf-8")
     html = (DASHBOARD / "index.html").read_text(encoding="utf-8")
     css = (DASHBOARD / "upgrade.css").read_text(encoding="utf-8")
 
     assert "TERM_HELP" in script
     assert 'class="term-help"' in script
-    assert "つまり：" in script
+    assert "つまり：" not in script
     assert '>かんたん</button>' in script
     assert '>詳細</button>' in script
     assert 'id="termSheet"' in html
@@ -38,6 +38,6 @@ def test_dashboard_shell_cache_versions_match():
     html = (DASHBOARD / "index.html").read_text(encoding="utf-8")
     service_worker = (DASHBOARD / "sw.js").read_text(encoding="utf-8")
 
-    assert "app.js?v=12" in html
-    assert "app.js?v=12" in service_worker
-    assert "swing-lens-v12" in service_worker
+    assert "app.js?v=13" in html
+    assert "app.js?v=13" in service_worker
+    assert "swing-lens-v13" in service_worker
