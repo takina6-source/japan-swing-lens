@@ -77,6 +77,16 @@ def run_research(db: Database, analyses: list, frames: dict[str, pd.DataFrame],
     checkpoint_rows = _update_checkpoints(store, hypotheses, evidence)
     market_dates = [str(frame.index[-1].date()) for frame in frames.values()
                     if frame is not None and not frame.empty]
+    benchmark_dates = ([str(value.date()) for value in benchmark.index]
+                       if benchmark is not None and not benchmark.empty else [])
+    holdout_trading_dates = sorted({value for value in benchmark_dates
+                                    if HOLDOUT_START <= value <= FAMILY_CLOSE_AT})
+    trading_session_progress = {
+        "elapsed": len(holdout_trading_dates),
+        "total": 90,
+        "source": "BENCHMARK_TRADING_DATES",
+        "latest_market_date": max(benchmark_dates) if benchmark_dates else None,
+    }
     family_result = _maybe_close_family(store, hypotheses, family,
                                         max(market_dates) if market_dates else "")
     research_seconds = time.perf_counter() - started
@@ -102,7 +112,8 @@ def run_research(db: Database, analyses: list, frames: dict[str, pd.DataFrame],
         ZoneInfo("Asia/Tokyo")).date()), "performance": performance, "storage": storage})
     return {"hypotheses": hypotheses, "family": family, "evidence": evidence,
             "checkpoints": checkpoint_rows, "family_result": family_result,
-            "performance_metrics": performance, "storage_metrics": storage}
+            "performance_metrics": performance, "storage_metrics": storage,
+            "trading_session_progress": trading_session_progress}
 
 
 def export_research(db: Database, output: Path, cfg: dict,
@@ -143,6 +154,16 @@ def export_research(db: Database, output: Path, cfg: dict,
         "research_events", "event_date,code,event_type,research_event_id")]
     subjects = [_clean_row(row) for row in store.rows(
         "validation_subjects", "anchor_date,subject_type,code")]
+    event_origin_counts = Counter(row.get("data_origin") or "NOT_ELIGIBLE" for row in events)
+    event_phase_counts = Counter(row.get("evaluation_phase") or "DISCOVERY" for row in events)
+    subject_origin_counts = Counter(row.get("data_origin") or "NOT_ELIGIBLE" for row in subjects)
+    subject_phase_counts = Counter(row.get("evaluation_phase") or "DISCOVERY" for row in subjects)
+    formal_event_count = sum(
+        row.get("data_origin") == "LIVE_FORWARD" and row.get("evaluation_phase") == "HOLDOUT"
+        for row in events)
+    formal_subject_count = sum(
+        row.get("data_origin") == "LIVE_FORWARD" and row.get("evaluation_phase") == "HOLDOUT"
+        for row in subjects)
     performance_rows = [{
         "hypothesis_version": version,
         "candidate_status": value["candidate"]["candidate_status"],
@@ -193,6 +214,28 @@ def export_research(db: Database, output: Path, cfg: dict,
         "hypothesis_count": len(hypothesis_exports),
         "event_count": len(events),
         "validation_subject_count": len(subjects),
+        "event_data_origin_counts": {
+            key: int(event_origin_counts.get(key, 0))
+            for key in ("LIVE_FORWARD", "RECONSTRUCTED_LEGACY", "NOT_ELIGIBLE")
+        },
+        "event_evaluation_phase_counts": {
+            key: int(event_phase_counts.get(key, 0))
+            for key in ("DISCOVERY", "HOLDOUT", "POST_CONFIRMATION")
+        },
+        "validation_subject_data_origin_counts": {
+            key: int(subject_origin_counts.get(key, 0))
+            for key in ("LIVE_FORWARD", "RECONSTRUCTED_LEGACY", "NOT_ELIGIBLE")
+        },
+        "validation_subject_evaluation_phase_counts": {
+            key: int(subject_phase_counts.get(key, 0))
+            for key in ("DISCOVERY", "HOLDOUT", "POST_CONFIRMATION")
+        },
+        "formal_validation_event_count": int(formal_event_count),
+        "formal_validation_subject_count": int(formal_subject_count),
+        "trading_session_progress": ((run_result or {}).get("trading_session_progress") or {
+            "elapsed": None, "total": 90, "source": "NOT_AVAILABLE",
+            "latest_market_date": None,
+        }),
         "available_files": available,
         "core_ranking_affected": False,
         "notes": [

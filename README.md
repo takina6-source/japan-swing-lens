@@ -82,6 +82,32 @@ Research exportの入口は次の固定URLです。
 
 3つのEntryモデル、Research専用Control、Checkpoint A/B、Family Close、Holm補正、
 日足内順序が不明な`PATH_AMBIGUOUS`、処理時間・保存量を`/research/`配下へ出力します。
+
+### Research進捗Viewer
+
+公開サイト上部の「Research進捗」、または次の直接URLから開けます。
+
+`https://takina6-source.github.io/japan-swing-lens/#research`
+
+Routingは`#research`を使用し、通常URLは従来どおり銘柄ランキングを表示します。ブラウザの
+戻る・進む、直接アクセス、再読込に対応します。Research JSONはResearch画面を開いたときだけ
+読み込み、取得・描画エラーはResearch画面内に閉じ込めるため、Coreランキングは継続利用できます。
+
+初期表示は「かんたん」で、日本語名と元のResearch用語、CheckpointのAND条件、データ用途、Entry
+Model、日足診断を確認できます。「詳細」ではRegistry、途中統計、性能、保存量を表示します。値が
+存在しない場合は0へ置き換えずN/Aまたは未計算と表示します。表示には以下の静的JSONだけを使います。
+
+- `research/index.json`
+- `research/hypotheses.json`
+- `research/families.json`
+- `research/checkpoints.json`
+- `research/intraday_diagnostics.json`
+- `research/storage_metrics.json`
+- `research/performance_metrics.json`
+
+画面契約のテストは`pytest -q tests/test_research_ui.py`、Research出力を含む統合テストは
+`pytest -q tests/test_research_pipeline.py`、Core固定入力比較は
+`python scripts/fixed_input_regression.py`で実行します。
 詳細は [`docs/RESEARCH.md`](docs/RESEARCH.md) を参照してください。
 
 ## 起動方法

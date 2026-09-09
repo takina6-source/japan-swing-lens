@@ -97,6 +97,16 @@ def test_research_run_is_additive_idempotent_and_exports_required_files(tmp_path
                 "performance_metrics.json", "state.json"}
     assert required <= {path.name for path in output.iterdir()}
     assert index["core_ranking_affected"] is False
+    assert index["trading_session_progress"] == {
+        "elapsed": 25,
+        "total": 90,
+        "source": "BENCHMARK_TRADING_DATES",
+        "latest_market_date": "2026-10-14",
+    }
+    assert index["event_data_origin_counts"]["LIVE_FORWARD"] > 0
+    assert index["event_data_origin_counts"]["RECONSTRUCTED_LEGACY"] == 0
+    assert index["formal_validation_event_count"] > 0
+    assert index["formal_validation_subject_count"] > 0
     assert json.loads((output / "index.json").read_text())["hypothesis_count"] == 4
 
 
