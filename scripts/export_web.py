@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 import os
+import time
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,7 @@ from engine.experimental import (analyze_experimental_universe, export_experimen
                                  seed_experimental, update_experimental_tracking)
 from engine.models import SetupState
 from engine.validation import export_validation, seed_validation
+from engine.research import export_research, run_research, seed_research
 from engine.annual_eps import annual_eps_profile, diagnostic_row
 from engine.quarterly_fundamentals import quarterly_diagnostic, quarterly_profile
 
@@ -140,10 +142,12 @@ def chart_rows(frame: pd.DataFrame) -> list[dict]:
 
 
 def export(refresh: bool, scope: str):
+    workflow_started = time.perf_counter()
     cfg = load_config()
     db = Database(ROOT / "data" / "momentum.db")
     seed_validation(db, os.getenv("VALIDATION_SEED_URL"))
     seed_experimental(db, os.getenv("EXPERIMENTAL_SEED_URL"))
+    seed_research(db, os.getenv("RESEARCH_SEED_URL"))
     service = DataService(db)
     meta = {row["code"]: row for row in db.load_securities()}
     if refresh:
@@ -174,6 +178,8 @@ def export(refresh: bool, scope: str):
     experimental = analyze_experimental_universe(
         analyses, prepared, fundamentals, meta, benchmark, cfg)
     update_experimental_tracking(db, experimental, analyses, prepared, benchmark, meta, cfg)
+    research = run_research(db, analyses, prepared, benchmark, meta, cfg,
+                            workflow_started=workflow_started)
     OUT.mkdir(parents=True, exist_ok=True)
     detail_dir = OUT / "details"
     detail_dir.mkdir(exist_ok=True)
@@ -322,9 +328,13 @@ def export(refresh: bool, scope: str):
     snapshot["experimental_validation"] = experiment
     snapshot["experimental_version"] = cfg["experimental_version"]
     snapshot["experiment_start_date"] = cfg["experiment_start_date"]
+    research_index = export_research(
+        db, ROOT / "public" / "dashboard" / "research", cfg, research)
     (OUT / "snapshot.json").write_text(
         json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
-    print(f"exported {len(candidates)} stocks as of {snapshot['as_of']}")
+    print(f"exported {len(candidates)} stocks as of {snapshot['as_of']}; "
+          f"research={research_index['event_count']} events, "
+          f"{research['performance_metrics']['research_total_seconds']:.2f}s")
 
 
 def queue_public_metadata(row: dict) -> dict:

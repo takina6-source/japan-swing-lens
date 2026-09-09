@@ -1,0 +1,37 @@
+versions:
+  research_logic_version: "2026.09-research-v1"
+  registry_schema_version: "1.0"
+  research_schema_version: "1.0"
+  control_selection_version: "research-control-v1"
+  validation_engine_version: "validation-subject-v1"
+  cost_model_version: "research-cost-v1"
+freeze:
+  family_id: "JSL_RESEARCH_CONFIRM_V1"
+  family_version: "1"
+  freeze_date: "2026-09-09"
+  data_seen_through: "2026-09-08"
+  holdout_start: "2026-09-10"
+  family_close_at: "2027-01-26"
+  family_close_sessions: 90
+cost_model:
+  cost_model_id: "JSL_ENTRY_COST"
+  units: "percentage_points_per_entry"
+  LOW:
+    fee: 0.00
+    spread: 0.02
+    slippage: 0.02
+    total: 0.04
+  BASE:
+    fee: 0.00
+    spread: 0.05
+    slippage: 0.05
+    total: 0.10
+  HIGH:
+    fee: 0.00
+    spread: 0.10
+    slippage: 0.15
+    total: 0.25
+  incremental_method_cost: 0.10
+  incremental_cost_uncertainty: 0.105
+  final_sesoi_pp: 0.30
+  final_sesoi_r: 0.21

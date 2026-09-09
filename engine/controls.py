@@ -7,6 +7,7 @@ import random
 import pandas as pd
 
 from .models import SetupState
+from .validation_engine import path_metrics
 
 
 ELIGIBLE_STATES = (SetupState.BREAKOUT, SetupState.BREAKOUT_WATCH)
@@ -115,12 +116,7 @@ def track_control_members(db, analyses_by_code: dict, frames: dict[str, pd.DataF
         if offset > int(cfg["tracking"]["max_sessions"]):
             continue
         initial = float(member["initial_close"])
-        close = float(path.close.iloc[-1])
-        absolute = (close / initial - 1) * 100
-        benchmark_start = _price_on_or_before(benchmark, start)
-        benchmark_now = _price_on_or_before(benchmark, end)
-        relative = absolute - ((benchmark_now / benchmark_start - 1) * 100) \
-            if benchmark_start and benchmark_now else None
+        metrics = path_metrics(path, initial, benchmark, start, end)
         rows.append({
             "control_group_id": member["control_group_id"],
             "signal_id": member["signal_id"],
@@ -128,11 +124,11 @@ def track_control_members(db, analyses_by_code: dict, frames: dict[str, pd.DataF
             "control_type": member["control_type"],
             "date": current.as_of,
             "session_offset": offset,
-            "close": close,
-            "return_abs": absolute,
-            "benchmark_relative_return": relative,
-            "mfe": (float(path.high.max()) / initial - 1) * 100,
-            "mae": (float(path.low.min()) / initial - 1) * 100,
+            "close": metrics["close"],
+            "return_abs": metrics["return_abs"],
+            "benchmark_relative_return": metrics["benchmark_relative_return"],
+            "mfe": metrics["mfe"],
+            "mae": metrics["mae"],
         })
     db.save_control_history(rows)
 

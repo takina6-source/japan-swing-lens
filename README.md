@@ -70,6 +70,20 @@ Signal、History、1/5/10/20営業日Performance、Random / Matched Control、Ve
 `/experimental/` 配下へ出力します。仕様、判定条件、無料データの制約は
 [`docs/EXPERIMENTAL.md`](docs/EXPERIMENTAL.md) を参照してください。
 
+### Research Layer（事前固定仮説の将来検証）
+
+Coreの判定・ランキングを一切変更せず、既存の日足、Signal Snapshot、Validationを使って
+H1〜H4を別系統で検証します。Registryと検証条件は2026-09-09に固定し、2026-09-10以降の
+`LIVE_FORWARD + HOLDOUT`だけを正式確認に使います。過去再構築データは探索専用です。
+
+Research exportの入口は次の固定URLです。
+
+`https://takina6-source.github.io/japan-swing-lens/research/index.json`
+
+3つのEntryモデル、Research専用Control、Checkpoint A/B、Family Close、Holm補正、
+日足内順序が不明な`PATH_AMBIGUOUS`、処理時間・保存量を`/research/`配下へ出力します。
+詳細は [`docs/RESEARCH.md`](docs/RESEARCH.md) を参照してください。
+
 ## 起動方法
 
 Finderで `start.command` をダブルクリックします。初回は環境準備と株価取得に数分かかることがあります。

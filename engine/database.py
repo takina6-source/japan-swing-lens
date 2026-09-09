@@ -7,6 +7,8 @@ from contextlib import contextmanager
 from pathlib import Path
 import pandas as pd
 
+from .validation_engine import path_metrics, price_on_or_before
+
 
 class Database:
     def __init__(self, path: Path):
@@ -598,18 +600,15 @@ class Database:
             if offset > int(cfg["tracking"]["max_sessions"]):
                 continue
             signal_price = float(signal["close"])
-            absolute = (float(x.close) / signal_price - 1) * 100
-            mfe = (float(path.high.max()) / signal_price - 1) * 100
-            mae = (float(path.low.min()) / signal_price - 1) * 100
-            bench_start = _price_on_or_before(benchmark, start)
-            bench_now = _price_on_or_before(benchmark, pd.Timestamp(analysis.as_of))
-            relative = absolute - ((bench_now / bench_start - 1) * 100) if bench_start and bench_now else None
+            metrics = path_metrics(path, signal_price, benchmark, start,
+                                   pd.Timestamp(analysis.as_of))
             saved_plan = json.loads(signal.get("trade_plan_json") or "{}")
             primary = _primary_pivot(json.loads(signal.get("strategy_pivots_json") or "{}"), signal_price)
             failed = bool(primary and float(x.close) < primary *
                           (1 - float(cfg["pivot"]["failed_below_pivot_pct"]) / 100))
-            history = (signal["signal_id"], analysis.as_of, offset, float(x.close), absolute,
-                       relative, mfe, mae, analysis.state.value,
+            history = (signal["signal_id"], analysis.as_of, offset, metrics["close"],
+                       metrics["return_abs"], metrics["benchmark_relative_return"],
+                       metrics["mfe"], metrics["mae"], analysis.state.value,
                        analysis.breakout_strategy_count, analysis.aligned_strategy_count,
                        analysis.coverage, analysis.confidence,
                        _finite(analysis.metrics.get("momentum_percentile")),
@@ -784,8 +783,7 @@ def _finite(value):
 
 
 def _price_on_or_before(frame: pd.DataFrame, date: pd.Timestamp) -> float | None:
-    rows = frame.loc[frame.index <= date]
-    return float(rows.close.iloc[-1]) if not rows.empty else None
+    return price_on_or_before(frame, date)
 
 
 def _primary_pivot(pivots: dict, signal_price: float) -> float | None:
