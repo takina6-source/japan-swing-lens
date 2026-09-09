@@ -331,19 +331,23 @@ def _create_research_controls(store: ResearchStore, analyses: list,
                               frames: dict[str, pd.DataFrame], meta: dict[str, dict],
                               cfg: dict) -> int:
     by_date: dict[str, list[dict]] = defaultdict(list)
+    existing_subjects = {row["validation_subject_id"] for row in
+                         store.rows("research_control_members")
+                         if row["selection_version"] == CONTROL_SELECTION_VERSION}
     for subject in store.rows("validation_subjects", "anchor_date,validation_subject_id"):
         if (subject["subject_type"] == "RESEARCH_ENTRY_EVENT"
                 and subject["price_basis"] == "OPEN"
-                and not store.control_members_for(subject["validation_subject_id"],
-                                                   CONTROL_SELECTION_VERSION)):
+                and subject["validation_subject_id"] not in existing_subjects):
             by_date[subject["anchor_date"]].append(subject)
     event_by_id = {row["research_event_id"]: row for row in store.rows("research_events")}
     feature_cache: dict[str, dict[str, SimpleNamespace]] = {}
+    executable_cache: dict[tuple[str, str], list[SimpleNamespace]] = {}
     signal_codes_by_date: dict[str, set[str]] = defaultdict(set)
     for event in event_by_id.values():
         if event["event_type"] == "BREAKOUT_CONFIRMED":
             signal_codes_by_date[event["event_date"]].add(event["code"])
-    created = 0
+    all_rows = []
+    created_groups: set[str] = set()
     for anchor_date, subjects in by_date.items():
         for subject in subjects:
             entry_event = event_by_id.get(subject.get("source_event_id"), {})
@@ -360,9 +364,13 @@ def _create_research_controls(store: ResearchStore, analyses: list,
             if signal is None:
                 continue
             excluded = signal_codes_by_date.get(selection_date, set())
-            candidates = [item for item in universe.values()
-                          if item.code != subject["code"] and item.code not in excluded
-                          and _exact_price(frames.get(item.code), anchor_date, "open") is not None]
+            cache_key = (selection_date, anchor_date)
+            if cache_key not in executable_cache:
+                executable_cache[cache_key] = [
+                    item for item in universe.values() if item.code not in excluded
+                    and _exact_price(frames.get(item.code), anchor_date, "open") is not None]
+            candidates = [item for item in executable_cache[cache_key]
+                          if item.code != subject["code"]]
             if not candidates:
                 continue
             random_codes = deterministic_random_codes(
@@ -372,9 +380,9 @@ def _create_research_controls(store: ResearchStore, analyses: list,
                             for item in candidates)
             matched_codes = [code for _, code in scored[:int(cfg["controls"]["matched_count"])]]
             candidate_map = {item.code: item for item in candidates}
-            rows = []
             for kind, codes in (("RANDOM", random_codes), ("MATCHED", matched_codes)):
                 group_id = _control_group_id(subject["validation_subject_id"], kind)
+                created_groups.add(group_id)
                 for rank, code in enumerate(codes, 1):
                     item = candidate_map[code]
                     feature = {
@@ -388,7 +396,7 @@ def _create_research_controls(store: ResearchStore, analyses: list,
                     }
                     feature_json = json.dumps(feature, ensure_ascii=False, sort_keys=True,
                                               separators=(",", ":"), default=str)
-                    rows.append({
+                    all_rows.append({
                         "control_group_id": group_id,
                         "validation_subject_id": subject["validation_subject_id"],
                         "control_code": code, "control_name": item.name,
@@ -401,10 +409,8 @@ def _create_research_controls(store: ResearchStore, analyses: list,
                         "feature_snapshot_json": feature_json,
                         "feature_hash": hashlib.sha256(feature_json.encode()).hexdigest(),
                     })
-            if rows:
-                created += len({row["control_group_id"] for row in rows})
-                store.save_control_members(rows)
-    return created
+    store.save_control_members(all_rows)
+    return len(created_groups)
 
 
 def _track_research(store: ResearchStore, frames: dict[str, pd.DataFrame],
