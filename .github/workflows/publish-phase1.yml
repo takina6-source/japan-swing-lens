@@ -1,0 +1,33 @@
+name: Complete Phase 1 publication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-phase1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Phase 1 files
+        run: |
+          tar -xzf phase1-files.tar.gz
+          rm phase1-files.tar.gz
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs engine pyproject.toml schemas scripts tests phase1-files.tar.gz
+          git commit -m "Add Morning Brief Phase 1 adapter"
+          git push
+      - name: Start final dashboard publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run update-dashboard.yml --ref main
