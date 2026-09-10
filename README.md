@@ -267,3 +267,13 @@ Control、Rankingを再生成し、`tests/fixtures/fixed_input/manifest.json`の
 読み込む疎結合構成を予定しています。
 キーの意味、欠損、履歴、Fundamental Lensとの整合条件は
 [`docs/investment_committee_interface.md`](docs/investment_committee_interface.md)を参照してください。
+
+## Morning Brief Phase 1（Core説明用JSON）
+
+生成済みCore snapshot/detailだけを読むAdapterを追加しました。
+`python scripts/export_briefing.py`で上位20件を`public/dashboard/briefing/latest.json`へ出力します。
+`--limit 0`で全候補、`--output`で出力先を指定できます。価格取得・DB接続・再分析・LLM呼出しはありません。
+順位、6手法の既存条件、Pivot/参考価格、品質・N/A理由を保持します。単独変換時はconfig対応を推定せず、versionを未確認にします。
+workflowはCore Export成功直後に`--same-run-config`で接続します。履歴保存やUI追加は行いません。
+[利用説明と制約](docs/MORNING_BRIEF.md)、[JSON Schema](schemas/morning_brief.schema.json)、
+[9月3日基準の保存入力による出力例](docs/examples/morning-brief/latest.json)を参照してください。

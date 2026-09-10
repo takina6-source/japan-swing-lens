@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Japan Swing Lens Morning Brief Phase 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "adapter_version", "status", "generated_at", "snapshot_generated_at", "as_of", "scope", "declared_count", "candidate_count", "output_count", "limit", "benchmark_source", "versions", "input_hashes", "definitions", "issues", "stocks"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "adapter_version": {"const": "1.0"},
+    "status": {"enum": ["OK", "PARTIAL", "UNAVAILABLE"]},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "snapshot_generated_at": {"type": ["string", "null"], "format": "date-time"},
+    "as_of": {"type": ["string", "null"], "format": "date"},
+    "scope": {"$ref": "#/$defs/text"},
+    "declared_count": {"type": ["integer", "null"], "minimum": 0},
+    "candidate_count": {"type": "integer", "minimum": 0},
+    "output_count": {"type": "integer", "minimum": 0},
+    "limit": {"type": "integer", "minimum": 0},
+    "benchmark_source": {"$ref": "#/$defs/text"},
+    "versions": {
+      "type": "object", "additionalProperties": false,
+      "required": ["logic_version", "strategy_version", "threshold_version", "status"],
+      "properties": {
+        "logic_version": {"$ref": "#/$defs/text"},
+        "strategy_version": {"$ref": "#/$defs/text"},
+        "threshold_version": {"$ref": "#/$defs/text"},
+        "status": {"enum": ["UNVERIFIED", "SAME_JOB_ATTESTED"]}
+      }
+    },
+    "input_hashes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["snapshot", "details", "config"],
+      "properties": {
+        "snapshot": {"$ref": "#/$defs/hash"},
+        "config": {"$ref": "#/$defs/hash"},
+        "details": {"type": "object", "propertyNames": {"pattern": "^[0-9A-Z]{4}$"}, "additionalProperties": {"$ref": "#/$defs/hash"}}
+      }
+    },
+    "definitions": {"type": "object", "additionalProperties": {"type": "string"}},
+    "issues": {"$ref": "#/$defs/issues"},
+    "stocks": {"type": "array", "items": {"$ref": "#/$defs/stock"}}
+  },
+  "allOf": [{"if": {"properties": {"status": {"const": "UNAVAILABLE"}}}, "then": {"properties": {"stocks": {"maxItems": 0}, "output_count": {"const": 0}}}}],
+  "$defs": {
+    "text": {"type": ["string", "null"]},
+    "number": {"type": ["number", "null"]},
+    "hash": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "state": {"enum": [null, "BREAKOUT", "BREAKOUT WATCH", "SETUP FORMING", "PULLBACK", "EXTENDED", "FAILED", "NOT QUALIFIED"]},
+    "issues": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false, "required": ["field", "reason"],
+      "properties": {"field": {"type": "string"}, "reason": {"type": "string", "pattern": "^[A-Z_]+$"}}
+    }},
+    "value": {"anyOf": [{"type": ["string", "number", "boolean", "null"]}, {"type": "array", "items": {"$ref": "#/$defs/value"}}]},
+    "condition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "label", "verdict", "role", "layer", "value", "reference", "unit", "fidelity", "note"],
+      "properties": {
+        "key": {"$ref": "#/$defs/text"}, "label": {"$ref": "#/$defs/text"},
+        "verdict": {"enum": [null, "○", "△", "×", "N/A"]},
+        "role": {"$ref": "#/$defs/text"}, "layer": {"$ref": "#/$defs/text"},
+        "value": {"$ref": "#/$defs/value"}, "reference": {"$ref": "#/$defs/value"},
+        "unit": {"$ref": "#/$defs/text"}, "fidelity": {"$ref": "#/$defs/text"}, "note": {"$ref": "#/$defs/text"}
+      }
+    },
+    "strategy": {
+      "type": "object", "additionalProperties": false, "required": ["state", "conditions"],
+      "properties": {"state": {"$ref": "#/$defs/state"}, "conditions": {"type": "array", "items": {"$ref": "#/$defs/condition"}}}
+    },
+    "plan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "basis", "warning", "entry_zone_low", "entry_zone_high", "stop", "target_1r", "target_2r", "risk_per_share"],
+      "properties": {
+        "status": {"$ref": "#/$defs/text"}, "basis": {"$ref": "#/$defs/text"}, "warning": {"$ref": "#/$defs/text"},
+        "entry_zone_low": {"$ref": "#/$defs/number"}, "entry_zone_high": {"$ref": "#/$defs/number"},
+        "stop": {"$ref": "#/$defs/number"}, "target_1r": {"$ref": "#/$defs/number"},
+        "target_2r": {"$ref": "#/$defs/number"}, "risk_per_share": {"$ref": "#/$defs/number"}
+      }
+    },
+    "stock": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rank", "code", "name", "analysis_date", "date_status", "close", "consensus_state", "aligned_count", "breakout_count", "confluence", "pivot", "pivot_type", "pivot_basis", "pivot_fidelity", "pivot_distance_pct", "trade_plan", "momentum_percentile", "avg_trading_value_20d", "current_trading_value", "trading_value_ratio", "liquidity_state", "liquid", "volume_ratio", "coverage", "confidence", "consensus_pivot_fidelity", "source", "strategies", "issues", "status"],
+      "properties": {
+        "rank": {"type": "integer", "minimum": 1}, "code": {"type": "string", "pattern": "^[0-9A-Z]{4}$"},
+        "name": {"$ref": "#/$defs/text"}, "analysis_date": {"type": ["string", "null"], "format": "date"},
+        "date_status": {"enum": ["UNKNOWN", "OLDER_THAN_SNAPSHOT", "MATCHES_SNAPSHOT"]},
+        "close": {"$ref": "#/$defs/number"}, "consensus_state": {"$ref": "#/$defs/state"},
+        "aligned_count": {"$ref": "#/$defs/number"}, "breakout_count": {"$ref": "#/$defs/number"},
+        "confluence": {"$ref": "#/$defs/number"}, "pivot": {"$ref": "#/$defs/number"},
+        "pivot_type": {"$ref": "#/$defs/text"}, "pivot_basis": {"$ref": "#/$defs/text"},
+        "pivot_fidelity": {"$ref": "#/$defs/text"}, "pivot_distance_pct": {"$ref": "#/$defs/number"},
+        "trade_plan": {"$ref": "#/$defs/plan"}, "momentum_percentile": {"$ref": "#/$defs/number"},
+        "avg_trading_value_20d": {"$ref": "#/$defs/number"}, "current_trading_value": {"$ref": "#/$defs/number"},
+        "trading_value_ratio": {"$ref": "#/$defs/number"}, "liquidity_state": {"$ref": "#/$defs/text"},
+        "liquid": {"type": ["boolean", "null"]}, "volume_ratio": {"$ref": "#/$defs/number"},
+        "coverage": {"$ref": "#/$defs/number"}, "confidence": {"$ref": "#/$defs/text"},
+        "consensus_pivot_fidelity": {"$ref": "#/$defs/text"}, "source": {"$ref": "#/$defs/text"},
+        "strategies": {
+          "type": "object", "additionalProperties": false,
+          "required": ["Minervini", "Qullamaggie", "CAN SLIM", "Weinstein", "Darvas", "Connors"],
+          "properties": {
+            "Minervini": {"$ref": "#/$defs/strategy"}, "Qullamaggie": {"$ref": "#/$defs/strategy"},
+            "CAN SLIM": {"$ref": "#/$defs/strategy"}, "Weinstein": {"$ref": "#/$defs/strategy"},
+            "Darvas": {"$ref": "#/$defs/strategy"}, "Connors": {"$ref": "#/$defs/strategy"}
+          }
+        },
+        "issues": {"$ref": "#/$defs/issues"}, "status": {"enum": ["OK", "PARTIAL"]}
+      }
+    }
+  }
+}
