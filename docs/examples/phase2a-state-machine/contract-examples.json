@@ -1,0 +1,271 @@
+{
+  "example_version": "phase2a-contract-examples-v1",
+  "notice": "Synthetic logical-schema examples. Values are not production output.",
+  "run_manifest": {
+    "run_id": "smrun-20260910-001",
+    "processing_status": "PARTIAL",
+    "coverage_status": "UNKNOWN",
+    "publish_eligibility": "ELIGIBLE_DEGRADED",
+    "state_commit_status": "COMMITTED",
+    "started_at": "2026-09-10T16:00:00+09:00",
+    "finished_at": "2026-09-10T16:12:00+09:00",
+    "source_commit": "0123456789abcdef0123456789abcdef01234567",
+    "expected_market_date": "2026-09-10",
+    "market_session_index": 1700,
+    "scope": {
+      "name": "prime500-growth",
+      "master_source_date": "2026-09-10",
+      "member_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "scope_total": 965
+    },
+    "versions": {
+      "logic_version": "2026.09-v1",
+      "strategy_version": "2026.09-v1",
+      "threshold_version": "2026.09-v1",
+      "identity_version": "csu1",
+      "identity_decision_rule_version": "idr1",
+      "state_machine_version": "sm1",
+      "state_machine_threshold_version": "smt1",
+      "observation_schema_version": "smo1",
+      "event_schema_version": "sev1"
+    },
+    "ledger_seed": {
+      "schema_version": "identity-ledger-v1",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "row_count": 420,
+      "producer_run_id": "smrun-20260909-001"
+    },
+    "observation_counts": {
+      "current": 960,
+      "no_new_market_observation": 0,
+      "stale_market_date": 4,
+      "insufficient_price_history": 1,
+      "fetch_failed": 0,
+      "analysis_failed": 0,
+      "invalid_input": 0
+    },
+    "identity_counts": {
+      "link": 390,
+      "mint": 10,
+      "ambiguous": 2,
+      "no_setup": 558
+    },
+    "transition_counts": {
+      "changed": 18,
+      "unchanged": 382,
+      "rejected": 2
+    },
+    "reason_codes": ["STALE_MARKET_DATE_PRESENT", "UPSTREAM_ERROR_UNATTRIBUTED"],
+    "structured_errors": [
+      {
+        "error_id": "err-smrun-20260910-001-001",
+        "stage": "UPSTREAM_SNAPSHOT",
+        "code": null,
+        "error_type": "UNATTRIBUTED_ERROR_COUNT",
+        "retryable": null,
+        "message_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    ],
+    "input_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "scope_member_current": {
+    "run_id": "smrun-20260910-001",
+    "code": "5901",
+    "in_scope": true,
+    "observation_status": "CURRENT",
+    "analysis_date": "2026-09-10",
+    "latest_price_date": "2026-09-10",
+    "price_history_count": 260,
+    "reason_codes": [],
+    "observation_uid": "obs1:5901:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "scope_member_insufficient": {
+    "run_id": "smrun-20260910-001",
+    "code": "8303",
+    "in_scope": true,
+    "observation_status": "INSUFFICIENT_PRICE_HISTORY",
+    "analysis_date": null,
+    "latest_price_date": "2026-09-10",
+    "price_history_count": 184,
+    "required_price_history_count": 200,
+    "reason_codes": ["PRICE_HISTORY_BELOW_MINIMUM"],
+    "observation_uid": null
+  },
+  "scope_member_stale": {
+    "run_id": "smrun-20260910-001",
+    "code": "5138",
+    "in_scope": true,
+    "observation_status": "STALE_MARKET_DATE",
+    "analysis_date": "2026-09-09",
+    "latest_price_date": "2026-09-09",
+    "price_history_count": 260,
+    "reason_codes": ["UNKNOWN_STALE_REASON"],
+    "observation_uid": null
+  },
+  "accepted_observation": {
+    "observation_uid": "obs1:5901:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "run_id": "smrun-20260910-001",
+    "namespace": "CORE",
+    "code": "5901",
+    "analysis_date": "2026-09-10",
+    "expected_market_date": "2026-09-10",
+    "market_session_index": 1700,
+    "observed_at": "2026-09-10T16:04:00+09:00",
+    "close": 1015.0,
+    "previous_accepted_close": 990.0,
+    "core_observed_state": "BREAKOUT",
+    "trend_strategy_states": {
+      "minervini": "BREAKOUT",
+      "qullamaggie": "BREAKOUT",
+      "can_slim": "BREAKOUT WATCH",
+      "weinstein": "SETUP FORMING",
+      "darvas": "NOT QUALIFIED"
+    },
+    "connors_state": "NOT QUALIFIED",
+    "aligned_trend_strategy_count": 4,
+    "breakout_trend_strategy_count": 2,
+    "observed_primary_pivot": {
+      "price": 1000.0,
+      "strategy": "minervini",
+      "pivot_type": "practical",
+      "basis": "T_MINUS_1_OHLCV",
+      "fidelity": "PRACTICAL",
+      "reference_date": "2026-09-09"
+    },
+    "legacy_refs": {
+      "consensus_setup_id": "legacy-consensus-id",
+      "strategy_setup_ids": ["legacy-min-id", "legacy-q-id"]
+    },
+    "observation_status": "CURRENT",
+    "identity_decision": "LINK",
+    "decision_slot": "core-primary",
+    "core_setup_uid": "csu1:5901:1111111111111111111111111111111111111111",
+    "tracking_pivot_revision_no": 1,
+    "input_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "reason_codes": []
+  },
+  "identity_decision": {
+    "decision_uid": "sid1:5901:2222222222222222222222222222222222222222",
+    "observation_uid": "obs1:5901:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "code": "5901",
+    "namespace": "CORE",
+    "decision_slot": "core-primary",
+    "decision": "LINK",
+    "target_core_setup_uid": "csu1:5901:1111111111111111111111111111111111111111",
+    "identity_epoch": "cutover-2026-09-01",
+    "origin_slot": "core-primary",
+    "decision_rule_version": "idr1",
+    "reason_codes": ["SINGLE_NONTERMINAL_SETUP_WITHIN_GAP_LIMIT"],
+    "evidence_refs": ["obs1:5901:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"],
+    "supersedes_decision_uid": null
+  },
+  "pivot_revision": {
+    "core_setup_uid": "csu1:5901:1111111111111111111111111111111111111111",
+    "revision_no": 1,
+    "tracking_pivot_price": 1000.0,
+    "strategy": "minervini",
+    "pivot_type": "practical",
+    "basis": "T_MINUS_1_OHLCV",
+    "fidelity": "PRACTICAL",
+    "effective_observation_uid": "obs1:5901:9999999999999999999999999999999999999999",
+    "valid_from_market_session_index": 1680,
+    "valid_to_market_session_index": null,
+    "frozen_after_breakout": true
+  },
+  "current_setup_state": {
+    "state_lineage": "live-sm1",
+    "core_setup_uid": "csu1:5901:1111111111111111111111111111111111111111",
+    "code": "5901",
+    "current_phase": "POST_BREAKOUT",
+    "continuity_status": "CONTIGUOUS",
+    "phase_entered_observation_uid": "obs1:5901:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "phase_entered_effective_date": "2026-09-10",
+    "latest_accepted_observation_uid": "obs1:5901:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "tracking_pivot_revision_no": 1,
+    "latest_breakout_event_uid": "sev1:5901:3333333333333333333333333333333333333333",
+    "latest_failure_event_uid": "sev1:5901:4444444444444444444444444444444444444444",
+    "minted_market_session_index": 1680,
+    "latest_breakout_market_session_index": 1700,
+    "state_machine_version": "sm1",
+    "state_machine_threshold_version": "smt1",
+    "state_version": 12
+  },
+  "transition_event": {
+    "event_uid": "sev1:5901:3333333333333333333333333333333333333333",
+    "event_request_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "event_type": "REBREAKOUT_CONFIRMED",
+    "occurrence_ordinal": 2,
+    "core_setup_uid": "csu1:5901:1111111111111111111111111111111111111111",
+    "from_phase": "RETRY_WATCH",
+    "to_phase": "POST_BREAKOUT",
+    "is_phase_transition": true,
+    "effective_date": "2026-09-10",
+    "effective_date_status": "EXACT_CURRENT_OBSERVATION",
+    "detected_at": "2026-09-10T16:06:00+09:00",
+    "observation_uid": "obs1:5901:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "tracking_pivot_revision_no": 1,
+    "prior_related_event_uid": "sev1:5901:4444444444444444444444444444444444444444",
+    "state_machine_version": "sm1",
+    "threshold_version": "smt1",
+    "reason_codes": ["QUALIFIED_REBREAKOUT", "PRICE_CROSS_FROM_BELOW", "BREAKOUT_STRATEGIES_GE_2"],
+    "evidence_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "idempotency_key": "sm1|csu1:5901:1111111111111111111111111111111111111111|REBREAKOUT_CONFIRMED|obs1:5901:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee|2",
+    "producer_run_id": "smrun-20260910-001",
+    "corrects_event_uid": null
+  },
+  "public_latest_state_artifact": {
+    "schema_version": "phase2a-public-state-v1",
+    "generated_at": "2026-09-10T16:13:00+09:00",
+    "source_run_id": "smrun-20260910-001",
+    "run_processing_status": "PARTIAL",
+    "coverage_status": "UNKNOWN",
+    "setups": [
+      {
+        "core_setup_uid": "csu1:5901:1111111111111111111111111111111111111111",
+        "code": "5901",
+        "phase": "POST_BREAKOUT",
+        "continuity_status": "CONTIGUOUS",
+        "distribution_eligible": true,
+        "as_of_market_date": "2026-09-10",
+        "latest_event": {
+          "event_uid": "sev1:5901:3333333333333333333333333333333333333333",
+          "event_type": "REBREAKOUT_CONFIRMED",
+          "effective_date": "2026-09-10"
+        }
+      }
+    ]
+  },
+  "closed_setup_state": {
+    "state_lineage": "live-sm1",
+    "core_setup_uid": "csu1:9999:7777777777777777777777777777777777777777",
+    "code": "9999",
+    "current_phase": "CLOSED",
+    "continuity_status": "PAUSED",
+    "distribution_eligible": false,
+    "closure_reason_code": "DELISTED_CONFIRMED",
+    "closure_evidence_ref": "master:2026-09-10:9999",
+    "state_machine_version": "sm1",
+    "state_machine_threshold_version": "smt1",
+    "state_version": 7
+  },
+  "closure_event": {
+    "event_uid": "sev1:9999:8888888888888888888888888888888888888888",
+    "event_request_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+    "event_type": "SETUP_CLOSED",
+    "occurrence_ordinal": 1,
+    "core_setup_uid": "csu1:9999:7777777777777777777777777777777777777777",
+    "from_phase": "WATCH",
+    "to_phase": "CLOSED",
+    "is_phase_transition": true,
+    "effective_date": "2026-09-10",
+    "effective_date_status": "MASTER_EVIDENCE_DATE",
+    "detected_at": "2026-09-10T16:06:00+09:00",
+    "observation_uid": null,
+    "permanent_exit_evidence_ref": "master:2026-09-10:9999",
+    "state_machine_version": "sm1",
+    "threshold_version": "smt1",
+    "reason_codes": ["PERMANENT_SCOPE_EXIT_CONFIRMED", "DELISTED_CONFIRMED"],
+    "producer_run_id": "smrun-20260910-001",
+    "corrects_event_uid": null
+  }
+}

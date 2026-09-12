@@ -1,0 +1,365 @@
+{
+  "fixture_version": "phase2a-design-fixtures-v1",
+  "state_machine_version": "sm1",
+  "threshold_version": "smt1",
+  "purpose": "Design-only executable contract. No production code or historical result is implied.",
+  "enums": {
+    "phases": [
+      "FORMING",
+      "WATCH",
+      "POST_BREAKOUT",
+      "FAILED",
+      "RETRY_WATCH",
+      "EXPIRED",
+      "CLOSED"
+    ],
+    "identity_decisions": ["LINK", "MINT", "AMBIGUOUS", "NO_SETUP"],
+    "observation_statuses": [
+      "CURRENT",
+      "NO_NEW_MARKET_OBSERVATION",
+      "STALE_MARKET_DATE",
+      "INSUFFICIENT_PRICE_HISTORY",
+      "FETCH_FAILED",
+      "ANALYSIS_FAILED",
+      "OUT_OF_SCOPE",
+      "INVALID_INPUT"
+    ],
+    "state_stage_blockers": [
+      "NONE",
+      "IDENTITY_AMBIGUOUS",
+      "LEDGER_UNAVAILABLE",
+      "VERSION_MISMATCH",
+      "INPUT_CONFLICT"
+    ],
+    "events": [
+      "SETUP_MINTED",
+      "BOOTSTRAP_OBSERVED",
+      "WATCH_ENTERED",
+      "BREAKOUT_CONFIRMED",
+      "FAILED_CONFIRMED",
+      "RETRY_WATCH_ENTERED",
+      "REBREAKOUT_CONFIRMED",
+      "PIVOT_REVISED",
+      "SETUP_EXPIRED",
+      "SETUP_CLOSED",
+      "CONTINUITY_RESUMED",
+      "CORRECTION_RECORDED"
+    ]
+  },
+  "thresholds": {
+    "failure_below_tracking_pivot_pct": 3.0,
+    "retry_watch_distance_pct": 3.0,
+    "candidate_min_aligned_strategies": 2,
+    "breakout_min_strategies": 2,
+    "pre_breakout_max_sessions": 90,
+    "post_breakout_max_sessions": 20,
+    "auto_link_max_gap_sessions": 5
+  },
+  "transition_contract": [
+    {"id": "T01", "from": null, "guard": "MINT_FORMING", "to": "FORMING", "events": ["SETUP_MINTED"]},
+    {"id": "T02", "from": null, "guard": "MINT_WATCH", "to": "WATCH", "events": ["SETUP_MINTED"]},
+    {"id": "T03", "from": null, "guard": "MINT_QUALIFIED_CROSS", "to": "POST_BREAKOUT", "events": ["SETUP_MINTED", "BREAKOUT_CONFIRMED"]},
+    {"id": "T04", "from": null, "guard": "CUTOVER_UNPROVEN_BREAKOUT", "to": "POST_BREAKOUT", "events": ["SETUP_MINTED", "BOOTSTRAP_OBSERVED"]},
+    {"id": "T05", "from": "FORMING", "guard": "CORE_WATCH", "to": "WATCH", "events": ["WATCH_ENTERED"]},
+    {"id": "T06", "from": ["FORMING", "WATCH"], "guard": "QUALIFIED_CROSS", "to": "POST_BREAKOUT", "events": ["BREAKOUT_CONFIRMED"]},
+    {"id": "T07", "from": "WATCH", "guard": "CORE_FORMING", "to": "FORMING", "events": []},
+    {"id": "T08", "from": ["FORMING", "WATCH"], "guard": "PRE_AGE_GT_90", "to": "EXPIRED", "events": ["SETUP_EXPIRED"]},
+    {"id": "T09", "from": "POST_BREAKOUT", "guard": "FAILED_BREACH", "to": "FAILED", "events": ["FAILED_CONFIRMED"]},
+    {"id": "T10", "from": "POST_BREAKOUT", "guard": "NO_FAILURE_OR_EXPIRY", "to": "POST_BREAKOUT", "events": []},
+    {"id": "T11", "from": "FAILED", "guard": "RETRY_ZONE", "to": "RETRY_WATCH", "events": ["RETRY_WATCH_ENTERED"]},
+    {"id": "T12", "from": "FAILED", "guard": "QUALIFIED_CROSS", "to": "POST_BREAKOUT", "events": ["REBREAKOUT_CONFIRMED"]},
+    {"id": "T13", "from": "RETRY_WATCH", "guard": "QUALIFIED_CROSS", "to": "POST_BREAKOUT", "events": ["REBREAKOUT_CONFIRMED"]},
+    {"id": "T14", "from": "RETRY_WATCH", "guard": "FAILED_BREACH", "to": "FAILED", "events": []},
+    {"id": "T15", "from": "RETRY_WATCH", "guard": "RETRY_CONDITION_LOST", "to": "FAILED", "events": []},
+    {"id": "T16", "from": ["POST_BREAKOUT", "FAILED", "RETRY_WATCH"], "guard": "POST_AGE_GT_20", "to": "EXPIRED", "events": ["SETUP_EXPIRED"]},
+    {"id": "T17", "from": "ANY_NONTERMINAL", "guard": "NO_PHASE_RULE", "to": "KEEP", "events": []},
+    {"id": "T18", "from": ["EXPIRED", "CLOSED"], "guard": "ANY", "to": "REJECT", "events": []},
+    {"id": "T19", "from": "ANY", "guard": "OBSERVATION_NOT_CURRENT", "to": "KEEP", "events": []},
+    {"id": "T20", "from": "ANY", "guard": "OUT_OF_ORDER", "to": "REJECT", "events": []},
+    {"id": "T21", "from": "ANY", "guard": "SAME_DAY_SAME_HASH", "to": "KEEP", "events": []},
+    {"id": "T22", "from": "ANY", "guard": "SAME_DAY_DIFFERENT_HASH", "to": "REJECT", "events": []},
+    {"id": "T23", "from": ["FORMING", "WATCH"], "guard": "VALID_PRE_BREAKOUT_PIVOT_CHANGE", "to": "KEEP_OR_CORE_MAPPING", "events": ["PIVOT_REVISED"]},
+    {"id": "T24", "from": ["POST_BREAKOUT", "FAILED", "RETRY_WATCH"], "guard": "OBSERVED_PIVOT_CHANGE", "to": "KEEP", "events": []},
+    {"id": "T25", "from": "ANY", "guard": "UNMIGRATED_STATE_MACHINE_VERSION", "to": "REJECT", "events": []},
+    {"id": "T26", "from": "ANY_NONTERMINAL", "guard": "PERMANENT_SCOPE_EXIT_CONFIRMED", "to": "CLOSED", "events": ["SETUP_CLOSED"]}
+  ],
+  "scenarios": [
+    {
+      "id": "normal-forming-watch-breakout",
+      "initial": {"phase": null, "core_setup_uid": null},
+      "steps": [
+        {"date": "2026-01-05", "session": 100, "status": "CURRENT", "core_state": "SETUP FORMING", "close": 970, "previous_close": 965, "pivot": 1000, "aligned": 2, "breakouts": 0, "decision": "MINT", "expect_phase": "FORMING", "expect_events": ["SETUP_MINTED"]},
+        {"date": "2026-01-06", "session": 101, "status": "CURRENT", "core_state": "BREAKOUT WATCH", "close": 990, "previous_close": 970, "pivot": 1000, "aligned": 2, "breakouts": 0, "decision": "LINK", "expect_phase": "WATCH", "expect_events": ["WATCH_ENTERED"]},
+        {"date": "2026-01-07", "session": 102, "status": "CURRENT", "core_state": "BREAKOUT", "close": 1010, "previous_close": 990, "pivot": 1000, "aligned": 3, "breakouts": 2, "decision": "LINK", "expect_phase": "POST_BREAKOUT", "expect_events": ["BREAKOUT_CONFIRMED"], "expect_breakout_ordinal": 1}
+      ]
+    },
+    {
+      "id": "watch-continuation-no-duplicate-event",
+      "initial": {"phase": "WATCH", "tracking_pivot": 1000},
+      "steps": [
+        {"date": "2026-01-08", "session": 103, "status": "CURRENT", "core_state": "BREAKOUT WATCH", "close": 995, "previous_close": 990, "pivot": 1000, "aligned": 2, "breakouts": 0, "decision": "LINK", "expect_phase": "WATCH", "expect_events": []}
+      ]
+    },
+    {
+      "id": "post-breakout-continuation",
+      "initial": {"phase": "POST_BREAKOUT", "tracking_pivot": 1000, "latest_breakout_session": 102},
+      "steps": [
+        {"date": "2026-01-09", "session": 104, "status": "CURRENT", "core_state": "BREAKOUT", "close": 1040, "previous_close": 1010, "pivot": 1000, "aligned": 3, "breakouts": 2, "decision": "LINK", "expect_phase": "POST_BREAKOUT", "expect_events": [], "reason": "No duplicate event while Core retains BREAKOUT"}
+      ]
+    },
+    {
+      "id": "breakout-failed-retry-rebreakout-with-missing-day",
+      "core_setup_uid": "csu1:5901:1111111111111111111111111111111111111111",
+      "initial": {"phase": "POST_BREAKOUT", "tracking_pivot": 1000, "latest_breakout_session": 100, "breakout_count": 1},
+      "steps": [
+        {"date": "2026-02-02", "session": 101, "status": "CURRENT", "close": 969, "previous_close": 1010, "pivot": 1000, "aligned": 1, "breakouts": 0, "decision": "LINK", "expect_phase": "FAILED", "expect_events": ["FAILED_CONFIRMED"]},
+        {"date": "2026-02-03", "session": 102, "status": "CURRENT", "close": 980, "previous_close": 969, "pivot": 1000, "aligned": 2, "breakouts": 0, "decision": "LINK", "expect_phase": "RETRY_WATCH", "expect_events": ["RETRY_WATCH_ENTERED"]},
+        {"date": "2026-02-04", "session": 103, "status": "STALE_MARKET_DATE", "close": null, "previous_close": 980, "pivot": 1000, "aligned": null, "breakouts": null, "decision": null, "expect_phase": "RETRY_WATCH", "expect_continuity": "PAUSED", "expect_events": []},
+        {"date": "2026-02-05", "session": 104, "status": "CURRENT", "close": 990, "previous_close": 980, "pivot": 1000, "aligned": 2, "breakouts": 0, "decision": "LINK", "expect_phase": "RETRY_WATCH", "expect_events": ["CONTINUITY_RESUMED"]},
+        {"date": "2026-02-06", "session": 105, "status": "CURRENT", "close": 1015, "previous_close": 990, "pivot": 1000, "aligned": 3, "breakouts": 2, "decision": "LINK", "expect_phase": "POST_BREAKOUT", "expect_events": ["REBREAKOUT_CONFIRMED"], "expect_breakout_ordinal": 2}
+      ]
+    },
+    {
+      "id": "second-failure-and-second-rebreakout",
+      "initial": {"phase": "POST_BREAKOUT", "tracking_pivot": 1000, "latest_breakout_session": 105, "breakout_count": 2},
+      "steps": [
+        {"date": "2026-02-09", "session": 106, "status": "CURRENT", "close": 960, "previous_close": 1015, "pivot": 1000, "aligned": 1, "breakouts": 0, "decision": "LINK", "expect_phase": "FAILED", "expect_events": ["FAILED_CONFIRMED"]},
+        {"date": "2026-02-10", "session": 107, "status": "CURRENT", "close": 975, "previous_close": 960, "pivot": 1000, "aligned": 2, "breakouts": 0, "decision": "LINK", "expect_phase": "RETRY_WATCH", "expect_events": ["RETRY_WATCH_ENTERED"]},
+        {"date": "2026-02-11", "session": 108, "status": "CURRENT", "close": 1008, "previous_close": 975, "pivot": 1000, "aligned": 2, "breakouts": 2, "decision": "LINK", "expect_phase": "POST_BREAKOUT", "expect_events": ["REBREAKOUT_CONFIRMED"], "expect_breakout_ordinal": 3}
+      ]
+    },
+    {
+      "id": "retry-watch-refails",
+      "initial": {"phase": "RETRY_WATCH", "tracking_pivot": 1000, "latest_breakout_session": 100},
+      "steps": [
+        {"date": "2026-03-02", "session": 110, "status": "CURRENT", "close": 969, "previous_close": 980, "pivot": 1000, "aligned": 2, "breakouts": 0, "decision": "LINK", "expect_phase": "FAILED", "expect_events": [], "reason": "Failure event for this cycle already exists"}
+      ]
+    },
+    {
+      "id": "direct-rebreakout-from-failed",
+      "initial": {"phase": "FAILED", "tracking_pivot": 1000, "latest_breakout_session": 100, "breakout_count": 1},
+      "steps": [
+        {"date": "2026-03-03", "session": 111, "status": "CURRENT", "close": 1010, "previous_close": 960, "pivot": 1000, "aligned": 2, "breakouts": 2, "decision": "LINK", "expect_phase": "POST_BREAKOUT", "expect_events": ["REBREAKOUT_CONFIRMED"], "expect_breakout_ordinal": 2}
+      ]
+    },
+    {
+      "id": "pre-breakout-pivot-revision-same-uid",
+      "initial": {"phase": "FORMING", "tracking_pivot": 1000, "tracking_revision": 1, "minted_session": 10},
+      "steps": [
+        {"date": "2026-03-04", "session": 20, "status": "CURRENT", "core_state": "SETUP FORMING", "close": 980, "previous_close": 975, "pivot": 1010, "aligned": 2, "breakouts": 0, "decision": "LINK", "expect_phase": "FORMING", "expect_events": ["PIVOT_REVISED"], "expect_tracking_revision": 2, "expect_same_core_setup_uid": true}
+      ]
+    },
+    {
+      "id": "post-breakout-pivot-change-does-not-move-tracking-pivot",
+      "initial": {"phase": "POST_BREAKOUT", "tracking_pivot": 1000, "tracking_revision": 2, "latest_breakout_session": 20},
+      "steps": [
+        {"date": "2026-03-05", "session": 21, "status": "CURRENT", "core_state": "SETUP FORMING", "close": 1020, "previous_close": 1010, "pivot": 1050, "aligned": 2, "breakouts": 0, "decision": "LINK", "expect_phase": "POST_BREAKOUT", "expect_events": [], "expect_tracking_pivot": 1000, "reason": "Observed primary pivot 1050 is retained only as an observed fact"}
+      ]
+    },
+    {
+      "id": "expired-old-setup-new-mint",
+      "initial": {"phase": "EXPIRED", "core_setup_uid": "csu1:5901:2222222222222222222222222222222222222222"},
+      "steps": [
+        {"date": "2026-04-01", "session": 200, "status": "CURRENT", "core_state": "SETUP FORMING", "close": 980, "previous_close": 970, "pivot": 1000, "aligned": 2, "breakouts": 0, "decision": "MINT", "expect_phase": "FORMING", "expect_events": ["SETUP_MINTED"], "expect_new_core_setup_uid": true}
+      ]
+    },
+    {
+      "id": "multiple-active-setups-ambiguous",
+      "initial": {"active_candidates": ["csu1:5901:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "csu1:5901:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]},
+      "steps": [
+        {"date": "2026-04-02", "session": 201, "status": "CURRENT", "core_state": "BREAKOUT WATCH", "close": 990, "pivot": 1000, "aligned": 2, "breakouts": 0, "explicit_slot_mapping": null, "decision": "AMBIGUOUS", "expect_phase": null, "expect_events": [], "reason_code": "MULTIPLE_ACTIVE_SETUP_CANDIDATES"}
+      ]
+    },
+    {
+      "id": "multiple-active-setups-explicit-slot-link",
+      "initial": {"active_candidates": ["csu1:5901:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "csu1:5901:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]},
+      "steps": [
+        {"date": "2026-04-03", "session": 202, "status": "CURRENT", "explicit_slot_mapping": "csu1:5901:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "decision": "LINK", "expect_target": "csu1:5901:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "expect_events": []}
+      ]
+    },
+    {
+      "id": "failure-price-boundary",
+      "cases": [
+        {"close": 970.01, "pivot": 1000, "expect_failed": false},
+        {"close": 970.0, "pivot": 1000, "expect_failed": false},
+        {"close": 969.99, "pivot": 1000, "expect_failed": true}
+      ]
+    },
+    {
+      "id": "retry-zone-price-boundary",
+      "cases": [
+        {"close": 969.99, "pivot": 1000, "aligned": 2, "expect_retry": false},
+        {"close": 970.0, "pivot": 1000, "aligned": 2, "expect_retry": true},
+        {"close": 1000.0, "pivot": 1000, "aligned": 2, "expect_retry": true},
+        {"close": 1000.01, "pivot": 1000, "aligned": 2, "expect_retry": false}
+      ]
+    },
+    {
+      "id": "strategy-count-boundary",
+      "cases": [
+        {"aligned": 1, "breakouts": 1, "expect_candidate": false, "expect_qualified_cross": false},
+        {"aligned": 2, "breakouts": 1, "expect_candidate": true, "expect_qualified_cross": false},
+        {"aligned": 2, "breakouts": 2, "expect_candidate": true, "expect_qualified_cross": true}
+      ]
+    },
+    {
+      "id": "session-expiration-boundaries",
+      "cases": [
+        {"kind": "pre", "age": 89, "expect_expired": false},
+        {"kind": "pre", "age": 90, "expect_expired": false},
+        {"kind": "pre", "age": 91, "expect_expired": true},
+        {"kind": "post", "age": 19, "expect_expired": false},
+        {"kind": "post", "age": 20, "expect_expired": false},
+        {"kind": "post", "age": 21, "expect_expired": true},
+        {"kind": "gap", "age": 5, "expect_auto_link": true},
+        {"kind": "gap", "age": 6, "expect_auto_link": false}
+      ]
+    },
+    {
+      "id": "invalid-price-and-pivot",
+      "cases": [
+        {"close": null, "pivot": 1000, "expect": "REJECT", "reason": "INVALID_TRANSITION_INPUT"},
+        {"close": 1000, "pivot": null, "expect": "REJECT", "reason": "INVALID_TRANSITION_INPUT"},
+        {"close": 0, "pivot": 1000, "expect": "REJECT", "reason": "INVALID_TRANSITION_INPUT"},
+        {"close": 1000, "pivot": 0, "expect": "REJECT", "reason": "INVALID_TRANSITION_INPUT"},
+        {"close": "NaN", "pivot": 1000, "expect": "REJECT", "reason": "INVALID_TRANSITION_INPUT"}
+      ]
+    },
+    {
+      "id": "insufficient-history-8303-like",
+      "initial": {"phase": null},
+      "steps": [
+        {"code": "8303", "status": "INSUFFICIENT_PRICE_HISTORY", "history_count": 184, "required_count": 200, "decision": null, "expect_phase": null, "expect_events": [], "reason_code": "PRICE_HISTORY_BELOW_MINIMUM"}
+      ]
+    },
+    {
+      "id": "stale-four-stocks-like",
+      "initial": {"phase": "WATCH"},
+      "steps": [
+        {"code": "5138", "expected_market_date": "2026-09-10", "analysis_date": "2026-09-09", "status": "STALE_MARKET_DATE", "decision": null, "expect_phase": "WATCH", "expect_events": [], "reason_code": "UNKNOWN_STALE_REASON"}
+      ]
+    },
+    {
+      "id": "fetch-and-analysis-errors",
+      "cases": [
+        {"status": "FETCH_FAILED", "expect_transition": false, "expect_continuity": "PAUSED"},
+        {"status": "ANALYSIS_FAILED", "expect_transition": false, "expect_continuity": "PAUSED"},
+        {"status": "LEDGER_UNAVAILABLE", "expect_transition": false, "expect_run_status": "FAILED"}
+      ]
+    },
+    {
+      "id": "scope-leave-return-short-gap",
+      "initial": {"phase": "WATCH", "last_session": 50},
+      "steps": [
+        {"session": 51, "status": "OUT_OF_SCOPE", "expect_phase": "WATCH", "expect_continuity": "PAUSED", "expect_events": []},
+        {"session": 55, "status": "CURRENT", "decision": "LINK", "expect_phase": "WATCH", "expect_continuity": "CONTIGUOUS", "expect_events": ["CONTINUITY_RESUMED"]}
+      ]
+    },
+    {
+      "id": "scope-return-long-gap",
+      "initial": {"phase": "WATCH", "last_session": 50},
+      "steps": [
+        {"session": 56, "status": "CURRENT", "decision": "AMBIGUOUS", "expect_phase": "WATCH", "expect_continuity": "SUSPENDED_GAP", "expect_events": [], "reason_code": "AUTO_LINK_GAP_EXCEEDED"}
+      ]
+    },
+    {
+      "id": "permanent-scope-exit-closes",
+      "initial": {"phase": "WATCH", "continuity": "PAUSED"},
+      "steps": [
+        {"status": "OUT_OF_SCOPE", "master_reason": "DELISTED_CONFIRMED", "permanent_exit_evidence_ref": "master:2026-05-01:5901", "decision": null, "expect_phase": "CLOSED", "expect_events": ["SETUP_CLOSED"], "reason_code": "PERMANENT_SCOPE_EXIT_CONFIRMED", "expect_distribution_eligible": false}
+      ]
+    },
+    {
+      "id": "dynamic-scope-removal-does-not-close",
+      "initial": {"phase": "WATCH", "continuity": "CONTIGUOUS"},
+      "steps": [
+        {"status": "OUT_OF_SCOPE", "master_reason": "DYNAMIC_UNIVERSE_RANK_CHANGE", "permanent_exit_evidence_ref": null, "decision": null, "expect_phase": "WATCH", "expect_continuity": "PAUSED", "expect_events": [], "forbid_events": ["SETUP_CLOSED"], "expect_distribution_eligible": false}
+      ]
+    },
+    {
+      "id": "qualified-cross-wins-on-first-over-limit-session",
+      "initial": {"phase": "WATCH", "tracking_pivot": 1000, "minted_session": 100, "last_accepted_session": 190, "breakout_count": 0},
+      "steps": [
+        {"date": "2026-05-01", "session": 191, "pre_breakout_age": 91, "status": "CURRENT", "core_state": "BREAKOUT", "close": 1010, "previous_close": 990, "pivot": 1000, "aligned": 2, "breakouts": 2, "decision": "LINK", "expect_phase": "POST_BREAKOUT", "expect_events": ["BREAKOUT_CONFIRMED"], "forbid_events": ["SETUP_EXPIRED"], "reason_code": "QUALIFIED_CROSS_PRECEDES_EXPIRY"}
+      ]
+    },
+    {
+      "id": "same-day-rerun-and-conflict",
+      "cases": [
+        {"analysis_date": "2026-05-01", "prior_input_hash": "abc", "input_hash": "abc", "expect": "NO_OP", "reason": "IDEMPOTENT_REPLAY"},
+        {"analysis_date": "2026-05-01", "prior_input_hash": "abc", "input_hash": "def", "expect": "QUARANTINE", "reason": "SAME_DATE_INPUT_CONFLICT"}
+      ]
+    },
+    {
+      "id": "out-of-order-live-input",
+      "initial": {"latest_accepted_date": "2026-05-02", "phase": "POST_BREAKOUT"},
+      "steps": [
+        {"analysis_date": "2026-05-01", "status": "CURRENT", "decision": "LINK", "expect": "REJECT", "expect_phase": "POST_BREAKOUT", "reason_code": "OUT_OF_ORDER_OBSERVATION", "route": "replay_namespace"}
+      ]
+    },
+    {
+      "id": "state-machine-version-change",
+      "initial": {"state_machine_version": "sm1", "phase": "WATCH"},
+      "steps": [
+        {"input_state_machine_version": "sm2", "migration_manifest": null, "expect": "REJECT", "expect_phase": "WATCH", "reason_code": "STATE_MACHINE_VERSION_MISMATCH", "route": "shadow_lineage"}
+      ]
+    },
+    {
+      "id": "cutover-breakout-does-not-invent-event",
+      "initial": {"phase": null, "identity_epoch": "cutover-2026-09-12"},
+      "steps": [
+        {"status": "CURRENT", "core_state": "BREAKOUT", "close": 1010, "pivot": 1000, "previous_close": null, "aligned": 2, "breakouts": 2, "decision": "MINT", "expect_phase": "POST_BREAKOUT", "expect_events": ["SETUP_MINTED", "BOOTSTRAP_OBSERVED"], "expect_breakout_cycle_no": 1, "expect_tracking_clock_anchor": "cutover_session", "forbid_events": ["BREAKOUT_CONFIRMED"]}
+      ]
+    },
+    {
+      "id": "connors-only-does-not-mint-core-trend-setup",
+      "initial": {"phase": null},
+      "steps": [
+        {"status": "CURRENT", "core_state": "PULLBACK", "connors_state": "PULLBACK", "aligned": 1, "breakouts": 0, "close": 900, "pivot": 1000, "decision": "NO_SETUP", "expect_phase": null, "expect_events": []}
+      ]
+    },
+    {
+      "id": "ledger-seed-fail-closed",
+      "cases": [
+        {"seed_status": "MISSING", "expect_run_status": "FAILED", "expect_mint_count": 0, "reason": "IDENTITY_LEDGER_UNAVAILABLE"},
+        {"seed_status": "HASH_MISMATCH", "expect_run_status": "FAILED", "expect_mint_count": 0, "reason": "IDENTITY_LEDGER_INVALID"}
+      ]
+    },
+    {
+      "id": "partial-run-then-complete-run",
+      "steps": [
+        {"run_id": "r1", "run_status": "PARTIAL", "state_commit_status": "COMMITTED", "code": "5138", "status": "STALE_MARKET_DATE", "expect_transition": false},
+        {"run_id": "r2", "run_status": "COMPLETE", "state_commit_status": "COMMITTED", "code": "5138", "status": "CURRENT", "gap_sessions": 1, "decision": "LINK", "expect_transition_evaluation": true}
+      ]
+    },
+    {
+      "id": "lookahead-prohibited",
+      "input": {"analysis_date": "2026-06-01", "pivot_input_max_date": "2026-05-29", "future_row_available_in_fixture": "2026-06-02"},
+      "expect_pivot_input_max_date_lte_previous_session": true,
+      "forbid_evidence_dates_after": "2026-06-01"
+    },
+    {
+      "id": "replay-determinism",
+      "input": {"observation_hash": "same", "seed_hash": "same", "state_machine_version": "sm1", "threshold_version": "smt1"},
+      "expect": {"state_hash_equal": true, "event_hash_equal": true, "event_count_equal": true}
+    },
+    {
+      "id": "atomic-retry",
+      "input": {"fail_after_stage": "EVENT_INSERT", "retry_with_same_run_input": true},
+      "expect_after_failure": {"orphan_identity_rows": 0, "orphan_events": 0, "current_state_updates": 0},
+      "expect_after_retry": {"duplicate_events": 0, "duplicate_mints": 0, "terminal_run_count": 1}
+    }
+  ],
+  "global_invariants": [
+    "Every market event references an accepted CURRENT observation; SETUP_CLOSED may instead reference structured permanent-exit evidence and corrections reference their superseded object.",
+    "No FAILED_CONFIRMED exists without a prior confirmed breakout event or cutover bootstrap breakout anchor for the same core_setup_uid.",
+    "Every REBREAKOUT_CONFIRMED has occurrence_ordinal >= 2.",
+    "EXPIRED and CLOSED are terminal for one core_setup_uid.",
+    "OUT_OF_SCOPE alone never emits SETUP_CLOSED; structured permanent-exit evidence is required.",
+    "A qualified cross on the first over-limit CURRENT observation is evaluated before expiry.",
+    "A non-CURRENT observation never changes current_phase.",
+    "A setup UID never changes when a pivot revision or strategy membership changes.",
+    "Core and Experimental namespaces never auto-link.",
+    "Same input, seed and versions produce identical state and event hashes."
+  ]
+}

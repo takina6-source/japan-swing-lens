@@ -4,13 +4,25 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      phase2a_initialize:
+        description: "Initialize Phase 2A from the approved cutover manifest"
+        required: true
+        default: false
+        type: boolean
+      cutover_manifest_sha256:
+        description: "Approved cutover manifest SHA-256 (initialize only)"
+        required: false
+        type: string
+      identity_epoch:
+        description: "Approved identity epoch"
+        required: true
+        default: "phase2a-cutover-v1"
+        type: string
   schedule:
     - cron: "0 10 * * 1-5" # 平日19:00 JST
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: swing-lens-pages
@@ -20,6 +32,8 @@ jobs:
   test:
     name: Test before publishing
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -37,6 +51,10 @@ jobs:
     name: Analyze and publish
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -59,7 +77,16 @@ jobs:
           VALIDATION_SEED_URL: https://takina6-source.github.io/japan-swing-lens/validation
           EXPERIMENTAL_SEED_URL: https://takina6-source.github.io/japan-swing-lens/experimental
           RESEARCH_SEED_URL: https://takina6-source.github.io/japan-swing-lens/research
+          PHASE2A_INPUT_DIR: ${{ runner.temp }}/phase2a-core-input
         run: python scripts/export_web.py --refresh --scope "主要500+Growth"
+      - name: Preserve private same-run input for Phase 2A
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2a-core-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/phase2a-core-input
+          retention-days: 1
+          if-no-files-found: error
       - name: Export Morning Brief Core JSON
         id: briefing
         continue-on-error: true
@@ -81,3 +108,95 @@ jobs:
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v4
+
+  phase2a-production-shadow:
+    name: Phase 2A production shadow
+    needs: analyze-and-publish
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e '.[test]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: phase2a-core-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/phase2a-core-input
+      - name: Read same-run market date
+        id: core
+        env:
+          CORE_SNAPSHOT: ${{ runner.temp }}/phase2a-core-input/snapshot.json
+        run: python -c "import json,os,pathlib; print('expected_date='+json.loads(pathlib.Path(os.environ['CORE_SNAPSHOT']).read_text())['as_of'], file=open(os.environ['GITHUB_OUTPUT'],'a'))"
+      - name: Enforce initialize event gate
+        if: inputs.phase2a_initialize
+        env:
+          APPROVED_SHA: ${{ inputs.cutover_manifest_sha256 }}
+        run: |
+          test "${{ github.event_name }}" = "workflow_dispatch"
+          test -n "$APPROVED_SHA"
+          test "$(sha256sum docs/phase2a-cutover-manifest.json | cut -d' ' -f1)" = "$APPROVED_SHA"
+      - name: Download immutable seed manifests
+        if: ${{ !inputs.phase2a_initialize }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "${{ runner.temp }}/phase2a-release-manifests"
+          gh release download phase2a-state-v1 --pattern '*.manifest.json' --dir "${{ runner.temp }}/phase2a-release-manifests"
+      - name: Select latest verified predecessor
+        if: ${{ !inputs.phase2a_initialize }}
+        id: predecessor
+        run: python scripts/phase2a_release_seed.py select --manifests-dir "${{ runner.temp }}/phase2a-release-manifests" --before-or-on "${{ steps.core.outputs.expected_date }}" --github-output "$GITHUB_OUTPUT"
+      - name: Download selected immutable seed
+        if: ${{ !inputs.phase2a_initialize }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_NAME: ${{ steps.predecessor.outputs.asset_name }}
+        run: gh release download phase2a-state-v1 --pattern "$ASSET_NAME" --dir "${{ runner.temp }}/phase2a-download"
+      - name: Verify and extract selected seed
+        if: ${{ !inputs.phase2a_initialize }}
+        env:
+          ASSET_NAME: ${{ steps.predecessor.outputs.asset_name }}
+          MANIFEST_PATH: ${{ steps.predecessor.outputs.manifest_path }}
+        run: python scripts/phase2a_release_seed.py extract --archive "${{ runner.temp }}/phase2a-download/$ASSET_NAME" --manifest "$MANIFEST_PATH" --target "${{ runner.temp }}/phase2a-seed-in"
+      - name: Initialize approved cutover
+        if: inputs.phase2a_initialize
+        id: initialize
+        run: python scripts/run_phase2a_production.py --mode initialize --input-dir "${{ runner.temp }}/phase2a-core-input" --db "${{ runner.temp }}/phase2a.sqlite" --output-dir "${{ runner.temp }}/phase2a-artifacts" --seed-output "${{ runner.temp }}/phase2a-seed-out" --release-output "${{ runner.temp }}/phase2a-release-out" --identity-epoch "${{ inputs.identity_epoch }}" --producer-commit-sha "${{ github.sha }}" --cutover-manifest docs/phase2a-cutover-manifest.json --cutover-manifest-sha256 "${{ inputs.cutover_manifest_sha256 }}" --github-output "$GITHUB_OUTPUT"
+      - name: Continue from verified seed
+        if: ${{ !inputs.phase2a_initialize }}
+        id: continuation
+        run: python scripts/run_phase2a_production.py --mode continue --input-dir "${{ runner.temp }}/phase2a-core-input" --db "${{ runner.temp }}/phase2a.sqlite" --output-dir "${{ runner.temp }}/phase2a-artifacts" --seed-output "${{ runner.temp }}/phase2a-seed-out" --release-output "${{ runner.temp }}/phase2a-release-out" --identity-epoch "${{ inputs.identity_epoch || 'phase2a-cutover-v1' }}" --producer-commit-sha "${{ github.sha }}" --seed "${{ runner.temp }}/phase2a-seed-in" --previous-release-manifest "${{ steps.predecessor.outputs.manifest_path }}" --github-output "$GITHUB_OUTPUT"
+      - name: Create single seed authority Release if needed
+        if: steps.initialize.outputs.promote == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view phase2a-state-v1 >/dev/null 2>&1 || gh release create phase2a-state-v1 --title "Phase 2A state authority" --notes "Immutable, minimal continuity seeds. No product database or price history."
+      - name: Upload immutable seed and manifest
+        if: steps.initialize.outputs.promote == 'true' || steps.continuation.outputs.promote == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload phase2a-state-v1 "${{ runner.temp }}"/phase2a-release-out/*
+      - name: Re-download and verify promoted seed
+        if: steps.initialize.outputs.promote == 'true' || steps.continuation.outputs.promote == 'true'
+        id: promoted
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "${{ runner.temp }}/phase2a-promoted"
+          gh release download phase2a-state-v1 --pattern '*.manifest.json' --dir "${{ runner.temp }}/phase2a-promoted"
+          python scripts/phase2a_release_seed.py select --manifests-dir "${{ runner.temp }}/phase2a-promoted" --before-or-on "${{ steps.core.outputs.expected_date }}" --github-output "$GITHUB_OUTPUT"
+      - name: Verify promoted archive bytes and seed
+        if: steps.initialize.outputs.promote == 'true' || steps.continuation.outputs.promote == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_NAME: ${{ steps.promoted.outputs.asset_name }}
+          MANIFEST_PATH: ${{ steps.promoted.outputs.manifest_path }}
+        run: |
+          gh release download phase2a-state-v1 --pattern "$ASSET_NAME" --dir "${{ runner.temp }}/phase2a-promoted"
+          python scripts/phase2a_release_seed.py extract --archive "${{ runner.temp }}/phase2a-promoted/$ASSET_NAME" --manifest "$MANIFEST_PATH" --target "${{ runner.temp }}/phase2a-promoted-seed"

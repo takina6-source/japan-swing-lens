@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phase2a_rejections.schema.json",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "source_run_id", "rejections"],
+  "properties": {
+    "schema_version": {"const": "phase2a-shadow-rejections-v1"},
+    "generated_at": {"type": "string"},
+    "source_run_id": {"type": "string"},
+    "rejections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rejection_uid", "action", "reason_codes", "state_machine_version"],
+        "properties": {
+          "rejection_uid": {"type": "string"},
+          "action": {"enum": ["REJECT", "QUARANTINE", "REPLAY"]},
+          "reason_codes": {"type": "array", "items": {"type": "string"}},
+          "state_machine_version": {"const": "sm1"}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

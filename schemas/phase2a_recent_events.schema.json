@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phase2a_recent_events.schema.json",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "source_run_id", "state_lineage", "market_day_window", "events"],
+  "properties": {
+    "schema_version": {"const": "phase2a-shadow-events-v1"},
+    "generated_at": {"type": "string"},
+    "source_run_id": {"type": "string"},
+    "state_lineage": {"type": "string"},
+    "market_day_window": {"type": "integer", "minimum": 1},
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["event_uid", "event_type", "core_setup_uid", "to_phase", "effective_date", "reason_codes", "evidence_sha256"],
+        "properties": {
+          "event_uid": {"type": "string", "pattern": "^sev1:[0-9]{4}:[0-9a-f]{40}$"},
+          "event_type": {"type": "string"},
+          "core_setup_uid": {"type": "string"},
+          "to_phase": {"type": "string"},
+          "effective_date": {"type": "string"},
+          "reason_codes": {"type": "array", "items": {"type": "string"}},
+          "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

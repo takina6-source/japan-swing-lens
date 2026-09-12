@@ -1,0 +1,116 @@
+{
+  "benchmark_version": "phase2a-limited-runtime-benchmark-v1",
+  "generated_at": "2026-09-12T02:12:35.273493+00:00",
+  "verification": {
+    "status": "PASS",
+    "failures": []
+  },
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_count": 10,
+    "python": "3.14.7",
+    "sqlite": "3.50.4"
+  },
+  "isolation": {
+    "temporary_directory_used": true,
+    "temporary_directory_removed_on_exit": true,
+    "product_database_opened": false,
+    "network_used": false,
+    "scope_rows_per_run": 1000,
+    "current_rows_per_run": 995,
+    "runs_per_scenario": 10,
+    "scenario_count": 18
+  },
+  "baseline": {
+    "empty_schema_bytes": 143360,
+    "seeded_database_bytes": 1724416,
+    "seed_payload_bytes": 1581056,
+    "seed_setup_count": 995,
+    "seed_sha256": "faa1bd1c9a71104415c92ceb5a68e359478f205dd72051223c9e6bb4a0efd57d"
+  },
+  "scenario_summary": [
+    {"scenario": "e00_r00_delete", "event_rate": 0.00, "revision_rate": 0.00, "journal_mode": "DELETE", "p50_ms": 22.055, "p95_ms": 28.869, "bytes_per_1000_scope_run": 1805107, "annual_projection_mb": 435.482, "peak_auxiliary_bytes": 0},
+    {"scenario": "e00_r15_delete", "event_rate": 0.00, "revision_rate": 0.15, "journal_mode": "DELETE", "p50_ms": 23.244, "p95_ms": 29.696, "bytes_per_1000_scope_run": 1851802, "annual_projection_mb": 446.747, "peak_auxiliary_bytes": 0},
+    {"scenario": "e00_r50_delete", "event_rate": 0.00, "revision_rate": 0.50, "journal_mode": "DELETE", "p50_ms": 24.536, "p95_ms": 32.886, "bytes_per_1000_scope_run": 1962803, "annual_projection_mb": 473.526, "peak_auxiliary_bytes": 0},
+    {"scenario": "e10_r00_delete", "event_rate": 0.10, "revision_rate": 0.00, "journal_mode": "DELETE", "p50_ms": 24.064, "p95_ms": 30.638, "bytes_per_1000_scope_run": 1917338, "annual_projection_mb": 462.558, "peak_auxiliary_bytes": 0},
+    {"scenario": "e10_r15_delete", "event_rate": 0.10, "revision_rate": 0.15, "journal_mode": "DELETE", "p50_ms": 24.820, "p95_ms": 31.901, "bytes_per_1000_scope_run": 1961984, "annual_projection_mb": 473.329, "peak_auxiliary_bytes": 0},
+    {"scenario": "e10_r50_delete", "event_rate": 0.10, "revision_rate": 0.50, "journal_mode": "DELETE", "p50_ms": 26.482, "p95_ms": 35.473, "bytes_per_1000_scope_run": 2071757, "annual_projection_mb": 499.811, "peak_auxiliary_bytes": 0},
+    {"scenario": "e25_r00_delete", "event_rate": 0.25, "revision_rate": 0.00, "journal_mode": "DELETE", "p50_ms": 25.666, "p95_ms": 33.499, "bytes_per_1000_scope_run": 2080358, "annual_projection_mb": 501.886, "peak_auxiliary_bytes": 0},
+    {"scenario": "e25_r15_delete", "event_rate": 0.25, "revision_rate": 0.15, "journal_mode": "DELETE", "p50_ms": 27.649, "p95_ms": 34.159, "bytes_per_1000_scope_run": 2125005, "annual_projection_mb": 512.657, "peak_auxiliary_bytes": 0},
+    {"scenario": "e25_r50_delete", "event_rate": 0.25, "revision_rate": 0.50, "journal_mode": "DELETE", "p50_ms": 28.088, "p95_ms": 36.453, "bytes_per_1000_scope_run": 2238054, "annual_projection_mb": 539.931, "peak_auxiliary_bytes": 0},
+    {"scenario": "e00_r00_wal", "event_rate": 0.00, "revision_rate": 0.00, "journal_mode": "WAL", "p50_ms": 25.026, "p95_ms": 35.819, "bytes_per_1000_scope_run": 1805107, "annual_projection_mb": 435.482, "peak_auxiliary_bytes": 8404640},
+    {"scenario": "e00_r15_wal", "event_rate": 0.00, "revision_rate": 0.15, "journal_mode": "WAL", "p50_ms": 25.632, "p95_ms": 31.395, "bytes_per_1000_scope_run": 1851802, "annual_projection_mb": 446.747, "peak_auxiliary_bytes": 6880240},
+    {"scenario": "e00_r50_wal", "event_rate": 0.00, "revision_rate": 0.50, "journal_mode": "WAL", "p50_ms": 27.024, "p95_ms": 33.435, "bytes_per_1000_scope_run": 1962803, "annual_projection_mb": 473.526, "peak_auxiliary_bytes": 7415840},
+    {"scenario": "e10_r00_wal", "event_rate": 0.10, "revision_rate": 0.00, "journal_mode": "WAL", "p50_ms": 25.892, "p95_ms": 32.418, "bytes_per_1000_scope_run": 1917338, "annual_projection_mb": 462.558, "peak_auxiliary_bytes": 7308720},
+    {"scenario": "e10_r15_wal", "event_rate": 0.10, "revision_rate": 0.15, "journal_mode": "WAL", "p50_ms": 27.554, "p95_ms": 34.252, "bytes_per_1000_scope_run": 1961984, "annual_projection_mb": 473.329, "peak_auxiliary_bytes": 7593000},
+    {"scenario": "e10_r50_wal", "event_rate": 0.10, "revision_rate": 0.50, "journal_mode": "WAL", "p50_ms": 29.235, "p95_ms": 36.295, "bytes_per_1000_scope_run": 2071757, "annual_projection_mb": 499.811, "peak_auxiliary_bytes": 8116240},
+    {"scenario": "e25_r00_wal", "event_rate": 0.25, "revision_rate": 0.00, "journal_mode": "WAL", "p50_ms": 28.640, "p95_ms": 35.829, "bytes_per_1000_scope_run": 2080358, "annual_projection_mb": 501.886, "peak_auxiliary_bytes": 7943200},
+    {"scenario": "e25_r15_wal", "event_rate": 0.25, "revision_rate": 0.15, "journal_mode": "WAL", "p50_ms": 29.822, "p95_ms": 37.066, "bytes_per_1000_scope_run": 2125005, "annual_projection_mb": 512.657, "peak_auxiliary_bytes": 8248080},
+    {"scenario": "e25_r50_wal", "event_rate": 0.25, "revision_rate": 0.50, "journal_mode": "WAL", "p50_ms": 30.446, "p95_ms": 39.170, "bytes_per_1000_scope_run": 2238054, "annual_projection_mb": 539.931, "peak_auxiliary_bytes": 8775440}
+  ],
+  "representative_scenario": {
+    "name": "e10_r15_wal",
+    "selection": "WAL, event 10%, pivot revision 15%",
+    "p50_ms": 27.554,
+    "p95_ms": 34.252,
+    "annual_projection_mb": 473.329,
+    "design_planning_mb": 258.0,
+    "variance_pct": 83.46,
+    "within_original_plus_minus_30_pct": false,
+    "peak_wal_and_shm_bytes": 7593000
+  },
+  "representative_storage_attribution_estimate_bytes": {
+    "method": "Drop one table and its indexes from an isolated copy, then VACUUM. Values are not additive exact accounting.",
+    "accepted_observations": 11227136,
+    "setup_identity_decisions": 5619712,
+    "setup_events": 2392064,
+    "run_scope_members": 2383872,
+    "setup_pivot_revisions": 1253376,
+    "core_setup_identity_ledger": 901120,
+    "current_setup_states": 868352,
+    "state_machine_runs": 573440
+  },
+  "seed_roundtrip": {
+    "artifact_bytes": 21344256,
+    "artifact_sha256": "d9f2a31fe846933e812446cc58d7c4b5dc94e73f059c05099d73d78043a4bf83",
+    "export_ms": 22.321,
+    "sha256_ms": 8.408,
+    "import_ms": 23.165,
+    "integrity_check_ms": 47.272,
+    "integrity_check": "ok",
+    "foreign_key_error_count": 0,
+    "current_state_rebuild_ms": 13.563,
+    "current_state_hash_equal": true
+  },
+  "atomic_failure_retry": {
+    "first_attempt": "ROLLED_BACK",
+    "after_failure_counts_equal_baseline": true,
+    "retry": "COMMITTED",
+    "identical_repeat": "NO_OP",
+    "current_state_hash_stable_on_repeat": true,
+    "orphan_row_count": 0,
+    "duplicate_event_key_count": 0,
+    "mint_rows_for_atomic_code": 1,
+    "terminal_run_count": 1,
+    "integrity_check": "ok"
+  },
+  "seed_fail_closed": {
+    "missing": {"accepted": false, "reason": "IDENTITY_LEDGER_UNAVAILABLE", "mint_count": 0},
+    "hash_mismatch": {"accepted": false, "reason": "IDENTITY_LEDGER_INVALID", "mint_count": 0},
+    "valid": {"accepted": true, "reason": "OK"}
+  },
+  "public_artifact_30d": {
+    "state_count": 995,
+    "event_count": 3000,
+    "compact_json_bytes": 574520,
+    "gzip_bytes": 119003
+  },
+  "decision": {
+    "runtime_and_integrity": "PASS",
+    "original_capacity_estimate": "REJECTED_BY_BENCHMARK",
+    "revised_representative_mb_per_year": 473.329,
+    "revised_planning_range_mb_per_year": [435.482, 539.931],
+    "retention_change_required": true
+  }
+}

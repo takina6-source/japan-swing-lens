@@ -49,3 +49,41 @@ def test_committee_export_runs_after_analysis_without_blocking_main_publish():
     assert committee["run"] == "python scripts/export_committee.py"
     assert committee["continue-on-error"] == "true"
     assert committee["env"]["COMMITTEE_SEED_URL"].endswith("/committee")
+
+
+def test_phase2a_permissions_are_job_scoped_and_publication_is_independent():
+    workflow = _workflow()
+    jobs = workflow["jobs"]
+    assert workflow["permissions"] == {}
+    assert jobs["analyze-and-publish"]["permissions"] == {
+        "contents": "read", "pages": "write", "id-token": "write"
+    }
+    shadow = jobs["phase2a-production-shadow"]
+    assert shadow["permissions"] == {"contents": "write", "actions": "read"}
+    assert jobs["analyze-and-publish"]["needs"] == "test"
+    assert shadow["needs"] == "analyze-and-publish"
+    assert "phase2a-production-shadow" not in str(jobs["analyze-and-publish"])
+
+
+def test_phase2a_initialize_is_manual_only_and_never_publishes_what_changed():
+    workflow = _workflow()
+    shadow = workflow["jobs"]["phase2a-production-shadow"]
+    initialize = next(step for step in shadow["steps"]
+                      if step.get("name") == "Initialize approved cutover")
+    gate = next(step for step in shadow["steps"]
+                if step.get("name") == "Enforce initialize event gate")
+    assert initialize["if"] == "inputs.phase2a_initialize"
+    assert 'github.event_name' in gate["run"]
+    assert 'workflow_dispatch' in gate["run"]
+    assert "cutover-manifest-sha256" in initialize["run"]
+    assert "public/dashboard/briefing/state" not in str(shadow)
+
+
+def test_phase2a_uses_immutable_release_assets_without_latest_pointer():
+    shadow = _workflow()["jobs"]["phase2a-production-shadow"]
+    rendered = str(shadow)
+    assert "phase2a-state-v1" in rendered
+    assert "phase2a_release_seed.py select" in rendered
+    assert "phase2a_release_seed.py extract" in rendered
+    assert "latest pointer" not in rendered.lower()
+    assert "--clobber" not in rendered

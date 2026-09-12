@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phase2a_seed_manifest.schema.json",
+  "type": "object",
+  "required": ["seed_schema_version", "operational_schema_version", "operational_schema_sha256", "state_lineage", "producer_run_id", "sqlite_sha256", "row_counts"],
+  "properties": {
+    "seed_schema_version": {"const": "phase2a-seed-v1"},
+    "operational_schema_version": {"const": "phase2a-schema-v1"},
+    "operational_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "state_lineage": {"type": "string"},
+    "producer_run_id": {"type": ["string", "null"]},
+    "sqlite_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "row_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+  },
+  "additionalProperties": false
+}

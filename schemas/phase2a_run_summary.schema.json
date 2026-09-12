@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phase2a_run_summary.schema.json",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "source_run_id", "state_lineage", "processing_status", "coverage_status", "publish_eligibility", "expected_market_date", "scope", "observation_counts", "identity_counts", "transition_count", "rejected_count", "versions", "reason_codes", "structured_errors", "input_sha256"],
+  "properties": {
+    "schema_version": {"const": "phase2a-shadow-run-v1"},
+    "generated_at": {"type": "string"},
+    "source_run_id": {"type": "string"},
+    "state_lineage": {"type": "string"},
+    "processing_status": {"enum": ["COMPLETE", "PARTIAL"]},
+    "coverage_status": {"enum": ["FULL", "DEGRADED", "UNKNOWN"]},
+    "publish_eligibility": {"enum": ["ELIGIBLE", "ELIGIBLE_DEGRADED", "BLOCKED"]},
+    "expected_market_date": {"type": "string", "format": "date"},
+    "market_session_index": {"type": "integer", "minimum": 0},
+    "scope": {"type": "object", "required": ["name", "count", "member_sha256"]},
+    "observation_counts": {"type": "object"},
+    "identity_counts": {"type": "object"},
+    "transition_count": {"type": "integer", "minimum": 0},
+    "rejected_count": {"type": "integer", "minimum": 0},
+    "versions": {"type": "object"},
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "structured_errors": {"type": "array"},
+    "input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

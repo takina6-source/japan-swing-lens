@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -29,6 +30,7 @@ from engine.validation import export_validation, seed_validation
 from engine.research import export_research, run_research, seed_research
 from engine.annual_eps import annual_eps_profile, diagnostic_row
 from engine.quarterly_fundamentals import quarterly_diagnostic, quarterly_profile
+from engine.state_machine.core_input import write_core_input_bundle
 
 OUT = ROOT / "public" / "dashboard" / "data"
 
@@ -332,6 +334,45 @@ def export(refresh: bool, scope: str):
         db, ROOT / "public" / "dashboard" / "research", cfg, research)
     (OUT / "snapshot.json").write_text(
         json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
+    phase2a_input = os.getenv("PHASE2A_INPUT_DIR")
+    if phase2a_input:
+        selected = select_scope(db.load_securities(), scope)
+        selected_codes = [str(row["code"]) for row in selected]
+        cached_frames = db.load_prices_many(selected_codes, YahooProvider().name)
+        scope_members = []
+        for code in selected_codes:
+            frame = cached_frames.get(code)
+            count = len(frame) if frame is not None else 0
+            latest = str(frame.index[-1].date()) if count else None
+            reasons = []
+            if count < 200:
+                reasons.append("INSUFFICIENT_PRICE_HISTORY")
+            elif code not in ranked_codes:
+                reasons.append("ANALYSIS_FAILED")
+            scope_members.append({
+                "code": code,
+                "in_scope": True,
+                "latest_price_date": latest,
+                "price_history_count": count,
+                "required_price_history_count": 200,
+                "reason_codes": reasons,
+            })
+        market_dates = sorted({
+            str(index.date())
+            for frame in cached_frames.values()
+            for index in frame.index[-260:]
+        })
+        try:
+            write_core_input_bundle(
+                Path(phase2a_input), snapshot_path=OUT / "snapshot.json",
+                details_dir=detail_dir, scope_members=scope_members,
+                market_dates=market_dates,
+                config_sha256=hashlib.sha256(
+                    (ROOT / "config" / "thresholds.yaml").read_bytes()
+                ).hexdigest(),
+            )
+        except Exception as exc:
+            print(f"warning: Phase 2A private input was not created: {type(exc).__name__}: {exc}")
     print(f"exported {len(candidates)} stocks as of {snapshot['as_of']}; "
           f"research={research_index['event_count']} events, "
           f"{research['performance_metrics']['research_total_seconds']:.2f}s")

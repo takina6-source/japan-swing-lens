@@ -1,0 +1,394 @@
+{
+  "annualized_range_bytes": {
+    "max": 497439743.99999994,
+    "min": 391607807.99999994
+  },
+  "atomic_retry": {
+    "failure_injected": true,
+    "integrity": {
+      "foreign_key_errors": [],
+      "integrity_check": "ok"
+    },
+    "repeat_result": "NO_OP",
+    "retry_result": "COMMITTED",
+    "rollback_counts_equal": true,
+    "run_delta": 1
+  },
+  "benchmark_version": "phase2a-final-physical-v1",
+  "capacity_gate": "PASS",
+  "current_size": 995,
+  "missing_seed_failed_closed": true,
+  "public_artifact": {
+    "gzip_bytes": 159392,
+    "raw_bytes": 455568
+  },
+  "representative": {
+    "annualized_bytes": 429256703.99999994,
+    "event_rate": 0.1,
+    "incremental_10_run_bytes": 17793024,
+    "integrity": {
+      "foreign_key_errors": [],
+      "integrity_check": "ok"
+    },
+    "journal_mode": "WAL",
+    "name": "e10_r15_wal",
+    "p50_ms": 49.11125000035099,
+    "p95_ms": 56.83780870031114,
+    "peak_wal_shm_bytes": 8610640,
+    "revision_rate": 0.15,
+    "seed_bytes": 6828032,
+    "table_bytes": {
+      "phase2a_current_states": 1351680,
+      "phase2a_events": 2748416,
+      "phase2a_identity_decisions": 5955584,
+      "phase2a_identity_ledger": 1368064,
+      "phase2a_observations": 11071488,
+      "phase2a_pivot_revisions": 1781760,
+      "phase2a_runs": 860160,
+      "phase2a_scope_members": 2854912,
+      "phase2a_strategy_identity_ledger": 1921024,
+      "phase2a_strategy_memberships": 1847296
+    }
+  },
+  "runs_per_scenario": 10,
+  "scenario_count": 18,
+  "scenarios": [
+    {
+      "annualized_bytes": 391607807.99999994,
+      "event_rate": 0.0,
+      "incremental_10_run_bytes": 16232448,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e00_r00_delete",
+      "p50_ms": 46.04147950067272,
+      "p95_ms": 66.81776714958684,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.0,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 405540864.0,
+      "event_rate": 0.0,
+      "incremental_10_run_bytes": 16809984,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e00_r15_delete",
+      "p50_ms": 46.171708500878594,
+      "p95_ms": 52.88298590021441,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.15,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 438248960.0,
+      "event_rate": 0.0,
+      "incremental_10_run_bytes": 18165760,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e00_r50_delete",
+      "p50_ms": 48.46543750136334,
+      "p95_ms": 56.36375855028746,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.5,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 415323648.0,
+      "event_rate": 0.1,
+      "incremental_10_run_bytes": 17215488,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e10_r00_delete",
+      "p50_ms": 46.213457999328966,
+      "p95_ms": 54.17604649956047,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.0,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 429256703.99999994,
+      "event_rate": 0.1,
+      "incremental_10_run_bytes": 17793024,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e10_r15_delete",
+      "p50_ms": 50.442104499779816,
+      "p95_ms": 55.23396685002808,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.15,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 461964800.00000006,
+      "event_rate": 0.1,
+      "incremental_10_run_bytes": 19148800,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e10_r50_delete",
+      "p50_ms": 50.74804200012295,
+      "p95_ms": 60.21858574949874,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.5,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 450798592.0,
+      "event_rate": 0.25,
+      "incremental_10_run_bytes": 18685952,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e25_r00_delete",
+      "p50_ms": 50.05068749960628,
+      "p95_ms": 56.73711219951656,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.0,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 464731648.0,
+      "event_rate": 0.25,
+      "incremental_10_run_bytes": 19263488,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e25_r15_delete",
+      "p50_ms": 50.02643799980433,
+      "p95_ms": 59.22942049901394,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.15,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 497439743.99999994,
+      "event_rate": 0.25,
+      "incremental_10_run_bytes": 20619264,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "DELETE",
+      "name": "e25_r50_delete",
+      "p50_ms": 53.837145999750646,
+      "p95_ms": 66.47000624998327,
+      "peak_wal_shm_bytes": 0,
+      "revision_rate": 0.5,
+      "seed_bytes": 6795264,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 391607807.99999994,
+      "event_rate": 0.0,
+      "incremental_10_run_bytes": 16232448,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e00_r00_wal",
+      "p50_ms": 45.56862499975978,
+      "p95_ms": 51.85235000062676,
+      "peak_wal_shm_bytes": 7535320,
+      "revision_rate": 0.0,
+      "seed_bytes": 6828032,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 405540864.0,
+      "event_rate": 0.0,
+      "incremental_10_run_bytes": 16809984,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e00_r15_wal",
+      "p50_ms": 46.89506249997066,
+      "p95_ms": 53.91372064968891,
+      "peak_wal_shm_bytes": 7906120,
+      "revision_rate": 0.15,
+      "seed_bytes": 6828032,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 438248960.0,
+      "event_rate": 0.0,
+      "incremental_10_run_bytes": 18165760,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e00_r50_wal",
+      "p50_ms": 50.446312500753265,
+      "p95_ms": 57.33150015012143,
+      "peak_wal_shm_bytes": 8672440,
+      "revision_rate": 0.5,
+      "seed_bytes": 6828032,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 415323648.0,
+      "event_rate": 0.1,
+      "incremental_10_run_bytes": 17215488,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e10_r00_wal",
+      "p50_ms": 46.862582999892766,
+      "p95_ms": 54.56833954949616,
+      "peak_wal_shm_bytes": 8239840,
+      "revision_rate": 0.0,
+      "seed_bytes": 6828032,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 429256703.99999994,
+      "event_rate": 0.1,
+      "incremental_10_run_bytes": 17793024,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e10_r15_wal",
+      "p50_ms": 49.11125000035099,
+      "p95_ms": 56.83780870031114,
+      "peak_wal_shm_bytes": 8610640,
+      "revision_rate": 0.15,
+      "seed_bytes": 6828032,
+      "table_bytes": {
+        "phase2a_current_states": 1351680,
+        "phase2a_events": 2748416,
+        "phase2a_identity_decisions": 5955584,
+        "phase2a_identity_ledger": 1368064,
+        "phase2a_observations": 11071488,
+        "phase2a_pivot_revisions": 1781760,
+        "phase2a_runs": 860160,
+        "phase2a_scope_members": 2854912,
+        "phase2a_strategy_identity_ledger": 1921024,
+        "phase2a_strategy_memberships": 1847296
+      }
+    },
+    {
+      "annualized_bytes": 461964800.00000006,
+      "event_rate": 0.1,
+      "incremental_10_run_bytes": 19148800,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e10_r50_wal",
+      "p50_ms": 52.25672899996425,
+      "p95_ms": 62.07543094915308,
+      "peak_wal_shm_bytes": 8355200,
+      "revision_rate": 0.5,
+      "seed_bytes": 6828032,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 450798592.0,
+      "event_rate": 0.25,
+      "incremental_10_run_bytes": 18685952,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e25_r00_wal",
+      "p50_ms": 50.8479370000714,
+      "p95_ms": 58.911766699475265,
+      "peak_wal_shm_bytes": 8042080,
+      "revision_rate": 0.0,
+      "seed_bytes": 6828032,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 464731648.0,
+      "event_rate": 0.25,
+      "incremental_10_run_bytes": 19263488,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e25_r15_wal",
+      "p50_ms": 52.279562499279564,
+      "p95_ms": 65.34213954992082,
+      "peak_wal_shm_bytes": 8359320,
+      "revision_rate": 0.15,
+      "seed_bytes": 6828032,
+      "table_bytes": {}
+    },
+    {
+      "annualized_bytes": 497439743.99999994,
+      "event_rate": 0.25,
+      "incremental_10_run_bytes": 20619264,
+      "integrity": {
+        "foreign_key_errors": [],
+        "integrity_check": "ok"
+      },
+      "journal_mode": "WAL",
+      "name": "e25_r50_wal",
+      "p50_ms": 56.47162500008562,
+      "p95_ms": 67.0640188991456,
+      "peak_wal_shm_bytes": 9039120,
+      "revision_rate": 0.5,
+      "seed_bytes": 6828032,
+      "table_bytes": {}
+    }
+  ],
+  "scope_size": 1000,
+  "seed_roundtrip": {
+    "export_ms": 125.96470800053794,
+    "integrity": {
+      "foreign_key_errors": [],
+      "integrity_check": "ok"
+    },
+    "restore_ms": 79.42954099962662,
+    "row_counts": {
+      "current_states": 995,
+      "event_anchors": 995,
+      "identity_ledger": 995,
+      "pivot_revisions": 2485,
+      "strategy_identity_ledger": 1990,
+      "strategy_memberships": 1990
+    },
+    "seed_bytes": 6840320,
+    "state_hash_equal": true,
+    "verify_ms": 8.535582999684266
+  }
+}

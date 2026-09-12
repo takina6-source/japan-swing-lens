@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phase2a_latest_state.schema.json",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "source_run_id", "state_lineage", "setups"],
+  "properties": {
+    "schema_version": {"const": "phase2a-shadow-state-v1"},
+    "generated_at": {"type": "string"},
+    "source_run_id": {"type": "string"},
+    "state_lineage": {"type": "string"},
+    "setups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["core_setup_uid", "code", "current_phase", "continuity_status", "distribution_eligible", "latest_accepted_date", "state_machine_version", "threshold_version", "state_version"],
+        "properties": {
+          "core_setup_uid": {"type": "string", "pattern": "^csu1:[0-9]{4}:[0-9a-f]{40}$"},
+          "code": {"type": "string", "pattern": "^[0-9]{4}$"},
+          "current_phase": {"enum": ["FORMING", "WATCH", "POST_BREAKOUT", "FAILED", "RETRY_WATCH", "EXPIRED", "CLOSED"]},
+          "continuity_status": {"enum": ["CONTIGUOUS", "PAUSED", "SUSPENDED_GAP", "TERMINAL"]},
+          "distribution_eligible": {"type": "integer", "enum": [0, 1]},
+          "latest_accepted_date": {"type": "string"},
+          "state_machine_version": {"const": "sm1"},
+          "threshold_version": {"const": "smt1"},
+          "state_version": {"type": "integer", "minimum": 1}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}
