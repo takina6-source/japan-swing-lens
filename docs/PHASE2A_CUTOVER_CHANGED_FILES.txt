@@ -1,0 +1,17 @@
+# Cutover-specific paths; the migrated State Machine paths are listed separately in
+# docs/PHASE2A_CHANGED_FILES.txt.
+.github/workflows/update-dashboard.yml
+docs/PHASE2A_CUTOVER_CHANGED_FILES.txt
+docs/PHASE2A_CUTOVER_DEPLOYMENT_GOAL.md
+docs/PHASE2A_CUTOVER_IMPLEMENTATION_RESULT.md
+docs/PHASE2A_CUTOVER_RUNBOOK.md
+docs/phase2a-cutover-manifest.json
+engine/state_machine/core_input.py
+engine/state_machine/deployment.py
+schemas/phase2a_cutover_manifest.schema.json
+schemas/phase2a_release_asset_manifest.schema.json
+scripts/export_web.py
+scripts/phase2a_release_seed.py
+scripts/run_phase2a_production.py
+tests/test_phase2a_cutover.py
+tests/test_workflow.py

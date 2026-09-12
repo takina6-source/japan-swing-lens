@@ -7,6 +7,7 @@ import tarfile
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator, FormatChecker
 
 from engine.state_machine.core_input import write_core_input_bundle
 from engine.state_machine.deployment import (
@@ -18,6 +19,9 @@ from engine.state_machine.ids import hash_payload
 from engine.state_machine.storage import Phase2ASeedError
 from scripts.run_phase2a_production import main
 from tests.test_phase2a_storage import core_inputs
+
+
+ROOT = Path(__file__).parents[1]
 
 
 def _bundle(tmp_path: Path) -> tuple[Path, tuple[dict, ...], str]:
@@ -149,3 +153,11 @@ def test_safe_extract_rejects_path_traversal(tmp_path):
         bundle.addfile(info, io.BytesIO(b"x"))
     with pytest.raises(Phase2ASeedError, match="unexpected files"):
         safe_extract_seed(archive, tmp_path / "out")
+
+
+def test_reviewed_cutover_manifest_matches_schema_and_implementation_commit():
+    manifest = json.loads((ROOT / "docs/phase2a-cutover-manifest.json").read_text())
+    schema = json.loads((ROOT / "schemas/phase2a_cutover_manifest.schema.json").read_text())
+    Draft202012Validator(schema, format_checker=FormatChecker()).validate(manifest)
+    assert manifest["implementation_commit_sha"] == "6d967b418521131bee888ef9b889c161a83ab308"
+    assert manifest["automatic_closed_enabled"] is False
