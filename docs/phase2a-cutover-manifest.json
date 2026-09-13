@@ -1,6 +1,6 @@
 {
   "manifest_version": "phase2a-cutover-v1",
-  "implementation_commit_sha": "6d967b418521131bee888ef9b889c161a83ab308",
+  "implementation_commit_sha": "6712cfc320adaeca928f78b6618a318761122552",
   "core_config_sha256": "064ead6f00a462aa055e1ac813bdec71a92d3b038c692d32e54112fdd700e85f",
   "scope_name": "主要500+Growth",
   "scope_member_count": 965,
