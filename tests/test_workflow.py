@@ -79,6 +79,28 @@ def test_phase2a_initialize_is_manual_only_and_never_publishes_what_changed():
     assert "public/dashboard/briefing/state" not in str(shadow)
 
 
+def test_phase2a_is_paused_on_schedule_and_requires_explicit_manual_flag():
+    workflow = _workflow()
+    inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+    shadow = workflow["jobs"]["phase2a-production-shadow"]
+    assert inputs["phase2a_run"]["default"] == "false"
+    assert "github.event_name == 'workflow_dispatch'" in shadow["if"]
+    assert "inputs.phase2a_run" in shadow["if"]
+    assert "schedule" not in shadow["if"]
+
+
+def test_lightweight_changes_run_before_morning_brief_and_publish():
+    steps = _workflow()["jobs"]["analyze-and-publish"]["steps"]
+    simple = next(i for i, step in enumerate(steps)
+                  if "scripts/export_simple_changes.py" in step.get("run", ""))
+    brief = next(i for i, step in enumerate(steps)
+                 if "scripts/export_briefing.py" in step.get("run", ""))
+    upload = next(i for i, step in enumerate(steps)
+                  if str(step.get("uses", "")).startswith("actions/upload-pages-artifact"))
+    assert simple < brief < upload
+    assert "--retention 30" in steps[simple]["run"]
+
+
 def test_phase2a_uses_immutable_release_assets_without_latest_pointer():
     shadow = _workflow()["jobs"]["phase2a-production-shadow"]
     rendered = str(shadow)

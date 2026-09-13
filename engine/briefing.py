@@ -12,6 +12,8 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from engine.simple_changes import briefing_summary
+
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "schemas" / "morning_brief.schema.json"
 METHODS = ("Minervini", "Qullamaggie", "CAN SLIM", "Weinstein", "Darvas", "Connors")
@@ -387,6 +389,13 @@ def export_brief(dashboard_root, output_dir, config, *, generated_at, limit=20, 
                 raise ValueError("INPUT_CHANGED")
         payload = build_brief(snapshot, details, config, generated_at=generated_at, limit=limit,
                               same_run_config=same_run_config, detail_errors=errors)
+        # What Changed is optional and must never make the Core brief unavailable.
+        try:
+            changes = json.loads((output / "what-changed.json").read_text(encoding="utf-8"))
+            if changes.get("schema_version") == "simple-what-changed-v1":
+                payload["what_changed"] = briefing_summary(changes)
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
         validate_brief(payload)
     except (OSError, ValueError, TypeError, KeyError, ArithmeticError):
         payload = build_brief(None, {}, {}, generated_at=generated_at, limit=max(0, limit))

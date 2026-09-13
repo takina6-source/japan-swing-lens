@@ -38,7 +38,8 @@
     },
     "definitions": {"type": "object", "additionalProperties": {"type": "string"}},
     "issues": {"$ref": "#/$defs/issues"},
-    "stocks": {"type": "array", "items": {"$ref": "#/$defs/stock"}}
+    "stocks": {"type": "array", "items": {"$ref": "#/$defs/stock"}},
+    "what_changed": {"$ref": "#/$defs/what_changed"}
   },
   "allOf": [{"if": {"properties": {"status": {"const": "UNAVAILABLE"}}}, "then": {"properties": {"stocks": {"maxItems": 0}, "output_count": {"const": 0}}}}],
   "$defs": {
@@ -50,6 +51,23 @@
       "type": "object", "additionalProperties": false, "required": ["field", "reason"],
       "properties": {"field": {"type": "string"}, "reason": {"type": "string", "pattern": "^[A-Z_]+$"}}
     }},
+    "what_changed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "status", "reason", "current_date", "previous_date", "state_change_count", "rank_change_count", "added_count", "removed_count", "summary_lines", "disclaimer"],
+      "properties": {
+        "schema_version": {"const": "simple-what-changed-v1"},
+        "status": {"enum": ["READY", "BASELINE_ONLY", "NO_NEW_MARKET_DATE", "UNAVAILABLE"]},
+        "reason": {"type": ["string", "null"]},
+        "current_date": {"type": "string", "format": "date"},
+        "previous_date": {"type": ["string", "null"], "format": "date"},
+        "state_change_count": {"type": "integer", "minimum": 0},
+        "rank_change_count": {"type": "integer", "minimum": 0},
+        "added_count": {"type": "integer", "minimum": 0},
+        "removed_count": {"type": "integer", "minimum": 0},
+        "summary_lines": {"type": "array", "items": {"type": "string"}, "maxItems": 31},
+        "disclaimer": {"type": "string"}
+      }
+    },
     "value": {"anyOf": [{"type": ["string", "number", "boolean", "null"]}, {"type": "array", "items": {"$ref": "#/$defs/value"}}]},
     "condition": {
       "type": "object", "additionalProperties": false,

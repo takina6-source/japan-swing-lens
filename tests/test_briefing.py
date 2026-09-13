@@ -279,6 +279,26 @@ def test_atomic_failure_removes_old_latest(tmp_path, monkeypatch):
     assert not list((tmp_path / "briefing").glob(".brief-*"))
 
 
+def test_export_embeds_optional_lightweight_what_changed_summary(tmp_path):
+    s, d = inputs()
+    root = tmp_path / "dashboard"
+    dump(root / "data/snapshot.json", s)
+    dump(root / "data/details/1000.json", d["1000"])
+    output = root / "briefing"
+    dump(output / "what-changed.json", {
+        "schema_version": "simple-what-changed-v1", "status": "READY", "reason": None,
+        "current_date": "2026-09-10", "previous_date": "2026-09-09",
+        "scope": "固定入力", "current_count": 1, "previous_count": 1,
+        "state_changes": [{"code": "1000"}], "rank_changes": [],
+        "added_codes": [], "removed_codes": [], "summary_lines": ["1000：形成中 → 直前"],
+        "disclaimer": "銘柄コード単位の参考比較です。",
+    })
+    payload = export_brief(root, output, CONFIG, generated_at=NOW, same_run_config=True)
+    assert payload["what_changed"]["state_change_count"] == 1
+    assert payload["what_changed"]["previous_date"] == "2026-09-09"
+    validate_brief(payload)
+
+
 def test_workflow_runs_after_core_and_excludes_failure():
     workflow = yaml.safe_load((ROOT / ".github/workflows/update-dashboard.yml").read_text())
     steps = workflow["jobs"]["analyze-and-publish"]["steps"]
