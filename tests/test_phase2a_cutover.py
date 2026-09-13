@@ -174,5 +174,5 @@ def test_reviewed_cutover_manifest_matches_schema_and_implementation_commit():
     manifest = json.loads((ROOT / "docs/phase2a-cutover-manifest.json").read_text())
     schema = json.loads((ROOT / "schemas/phase2a_cutover_manifest.schema.json").read_text())
     Draft202012Validator(schema, format_checker=FormatChecker()).validate(manifest)
-    assert manifest["implementation_commit_sha"] == "6d967b418521131bee888ef9b889c161a83ab308"
+    assert manifest["implementation_commit_sha"] == "6712cfc320adaeca928f78b6618a318761122552"
     assert manifest["automatic_closed_enabled"] is False
