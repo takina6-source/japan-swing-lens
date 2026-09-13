@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -22,6 +24,19 @@ from tests.test_phase2a_storage import core_inputs
 
 
 ROOT = Path(__file__).parents[1]
+
+
+def test_production_runner_supports_direct_script_execution() -> None:
+    result = subprocess.run(
+        [sys.executable, "scripts/run_phase2a_production.py", "--help"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "--mode" in result.stdout
 
 
 def _bundle(tmp_path: Path) -> tuple[Path, tuple[dict, ...], str]:

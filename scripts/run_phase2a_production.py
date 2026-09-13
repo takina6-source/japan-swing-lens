@@ -9,6 +9,10 @@ import json
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).parents[1].resolve()
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from engine.state_machine.adapter import adapt_core_artifacts
 from engine.state_machine.artifacts import write_shadow_artifacts
 from engine.state_machine.config import (
