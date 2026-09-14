@@ -25,7 +25,7 @@ on:
         default: "phase2a-cutover-v1"
         type: string
   schedule:
-    - cron: "0 10 * * 1-5" # 平日19:00 JST
+    - cron: "30 21 * * 1-5" # 翌朝06:30 JST（前営業日のYahoo日足確定後）
 
 permissions: {}
 

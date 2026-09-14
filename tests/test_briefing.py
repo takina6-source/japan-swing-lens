@@ -288,6 +288,7 @@ def test_export_embeds_optional_lightweight_what_changed_summary(tmp_path):
     dump(output / "what-changed.json", {
         "schema_version": "simple-what-changed-v1", "status": "READY", "reason": None,
         "current_date": "2026-09-10", "previous_date": "2026-09-09",
+        "checked_at": "2026-09-10T20:00:00+09:00",
         "scope": "固定入力", "current_count": 1, "previous_count": 1,
         "state_changes": [{"code": "1000"}], "rank_changes": [],
         "added_codes": [], "removed_codes": [], "summary_lines": ["1000：形成中 → 直前"],
@@ -296,6 +297,7 @@ def test_export_embeds_optional_lightweight_what_changed_summary(tmp_path):
     payload = export_brief(root, output, CONFIG, generated_at=NOW, same_run_config=True)
     assert payload["what_changed"]["state_change_count"] == 1
     assert payload["what_changed"]["previous_date"] == "2026-09-09"
+    assert payload["what_changed"]["checked_at"] == "2026-09-10T20:00:00+09:00"
     validate_brief(payload)
 
 

@@ -101,6 +101,11 @@ def test_lightweight_changes_run_before_morning_brief_and_publish():
     assert "--retention 30" in steps[simple]["run"]
 
 
+def test_schedule_waits_until_yahoo_daily_prices_are_settled():
+    schedule = _workflow()["on"]["schedule"]
+    assert schedule == [{"cron": "30 21 * * 1-5"}]
+
+
 def test_phase2a_uses_immutable_release_assets_without_latest_pointer():
     shadow = _workflow()["jobs"]["phase2a-production-shadow"]
     rendered = str(shadow)

@@ -38,10 +38,10 @@ def test_dashboard_shell_cache_versions_match():
     html = (DASHBOARD / "index.html").read_text(encoding="utf-8")
     service_worker = (DASHBOARD / "sw.js").read_text(encoding="utf-8")
 
-    assert "app.js?v=15" in html
-    assert "app.js?v=15" in service_worker
-    assert "upgrade.css?v=15" in html
-    assert "upgrade.css?v=15" in service_worker
+    assert "app.js?v=16" in html
+    assert "app.js?v=16" in service_worker
+    assert "upgrade.css?v=16" in html
+    assert "upgrade.css?v=16" in service_worker
     assert "research.js?v=14" in html
     assert "research.js?v=14" in service_worker
-    assert "swing-lens-v15" in service_worker
+    assert "swing-lens-v16" in service_worker

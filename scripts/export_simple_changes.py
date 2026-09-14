@@ -79,6 +79,9 @@ def export(dashboard_root: Path, history_url: str, retention: int, timeout: floa
     by_date = {item["as_of"]: item for item in history}
     earlier = [item for item in by_date.values() if item["as_of"] < current["as_of"]]
     previous = max(earlier, key=lambda item: item["as_of"], default=None)
+    # A repeated run for the same market date is an observed no-update, not a new baseline.
+    if previous is None:
+        previous = by_date.get(current["as_of"])
     report = compare_snapshots(previous, current)
     by_date[current["as_of"]] = current
     kept = sorted(by_date.values(), key=lambda item: item["as_of"], reverse=True)[:retention]
@@ -89,7 +92,8 @@ def export(dashboard_root: Path, history_url: str, retention: int, timeout: floa
     for path in history_dir.glob("snapshot-*.json"):
         if path.name not in kept_names:
             path.unlink()
-    entries = [{"as_of": item["as_of"], "file": f'snapshot-{item["as_of"]}.json',
+    entries = [{"as_of": item["as_of"], "captured_at": item.get("captured_at"),
+                "file": f'snapshot-{item["as_of"]}.json',
                 "sha256": item["source_hash"]} for item in kept]
     _atomic_json(history_dir / "index.json", {
         "schema_version": INDEX_SCHEMA,

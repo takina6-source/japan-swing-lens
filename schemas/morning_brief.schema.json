@@ -53,13 +53,14 @@
     }},
     "what_changed": {
       "type": "object", "additionalProperties": false,
-      "required": ["schema_version", "status", "reason", "current_date", "previous_date", "state_change_count", "rank_change_count", "added_count", "removed_count", "summary_lines", "disclaimer"],
+      "required": ["schema_version", "status", "reason", "current_date", "previous_date", "checked_at", "state_change_count", "rank_change_count", "added_count", "removed_count", "summary_lines", "disclaimer"],
       "properties": {
         "schema_version": {"const": "simple-what-changed-v1"},
         "status": {"enum": ["READY", "BASELINE_ONLY", "NO_NEW_MARKET_DATE", "UNAVAILABLE"]},
         "reason": {"type": ["string", "null"]},
         "current_date": {"type": "string", "format": "date"},
         "previous_date": {"type": ["string", "null"], "format": "date"},
+        "checked_at": {"type": ["string", "null"], "format": "date-time"},
         "state_change_count": {"type": "integer", "minimum": 0},
         "rank_change_count": {"type": "integer", "minimum": 0},
         "added_count": {"type": "integer", "minimum": 0},

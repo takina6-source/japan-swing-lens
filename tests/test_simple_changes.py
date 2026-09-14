@@ -50,6 +50,26 @@ def test_first_run_and_same_market_date_do_not_make_false_changes():
     assert compare_snapshots(current, current)["status"] == "NO_NEW_MARKET_DATE"
 
 
+def test_export_recognizes_published_same_date_as_completed_check(tmp_path: Path):
+    published = tmp_path / "published" / "snapshot-history"
+    published.mkdir(parents=True)
+    item = compact_snapshot(core())
+    filename = f'snapshot-{item["as_of"]}.json'
+    (published / filename).write_text(json.dumps(item), encoding="utf-8")
+    (published / "index.json").write_text(json.dumps({
+        "schema_version": "simple-history-index-v1",
+        "entries": [{"as_of": item["as_of"], "file": filename,
+                     "sha256": item["source_hash"]}],
+    }), encoding="utf-8")
+    dashboard = tmp_path / "dashboard"
+    (dashboard / "data").mkdir(parents=True)
+    (dashboard / "data" / "snapshot.json").write_text(json.dumps(core()), encoding="utf-8")
+    report = export(dashboard, published.as_uri(), 30, 2)
+    assert report["status"] == "NO_NEW_MARKET_DATE"
+    assert report["reason"] == "SAME_MARKET_DATE"
+    assert report["previous_date"] == "2026-09-11"
+
+
 def test_guard_stops_incomparable_scope():
     previous = compact_snapshot(core())
     current = compact_snapshot(core("2026-09-12", scope="別範囲"))
@@ -79,5 +99,6 @@ def test_export_restores_published_history_and_keeps_30_dates(tmp_path: Path):
     assert report["previous_date"] == "2026-08-30"
     assert len(index["entries"]) == 30
     assert index["entries"][0]["as_of"] == "2026-09-01"
+    assert "captured_at" in index["entries"][0]
     assert not (dashboard / "snapshot-history" / "snapshot-2026-08-01.json").exists()
     assert (dashboard / "briefing" / "what-changed.txt").exists()
