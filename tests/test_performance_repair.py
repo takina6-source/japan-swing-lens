@@ -92,6 +92,14 @@ def test_signal_random_matched_and_rerun(tmp_path):
     assert after_performance[0]["return_1d_pct"] == pytest.approx(5)
     assert after_performance[0]["random_return_mean_1d_pct"] == pytest.approx(5)
     assert after_performance[0]["matched_return_mean_1d_pct"] == pytest.approx(5)
+    seed = json.loads((tmp_path / "after" / "state.json").read_text())
+    assert "performance_status" not in seed["history"][0]
+    assert "adjusted_entry_price" not in seed["control_history"][0]
+    restored = Database(tmp_path / "restored.db")
+    restored.import_validation_rows(seed["signals"], seed["history"],
+                                    seed["controls"], seed["control_history"])
+    assert len(restored.validation_rows()[0]) == len(signals)
+    assert len(restored.control_validation_rows()[0]) == len(controls)
     before = json.dumps((history, control_history), sort_keys=True)
     second = repair_validation(db, frames, frame(100, 101), actions)
     after = json.dumps((db.validation_rows()[1], db.control_validation_rows()[1]),

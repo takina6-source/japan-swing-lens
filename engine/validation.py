@@ -13,6 +13,7 @@ import requests
 
 from .database import Database
 from .liquidity import liquidity_level
+from .performance_repair import seed_observation
 
 STRATEGIES = ("Minervini", "Qullamaggie", "CAN SLIM", "Weinstein", "Darvas", "Connors")
 TREND_STRATEGIES = STRATEGIES[:-1]
@@ -105,8 +106,9 @@ def export_validation(db: Database, output: Path, cfg: dict,
         ],
     })
     _write_json(output / "state.json", {
-        "signals": signals_raw, "history": history_raw,
-        "controls": controls_raw, "control_history": control_history_raw,
+        "signals": signals_raw, "history": [seed_observation(row) for row in history_raw],
+        "controls": controls_raw,
+        "control_history": [seed_observation(row) for row in control_history_raw],
     })
     dates = [row["signal_date"] for row in signals if row.get("signal_date")]
     observation_dates = [row["date"] for row in history if row.get("date")]

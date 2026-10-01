@@ -14,6 +14,7 @@ import pandas as pd
 import requests
 
 from ..controls import control_group_id, deterministic_random_codes, matching_distance
+from ..performance_repair import seed_observation
 
 
 def seed_experimental(db, base_url: str | None) -> bool:
@@ -183,8 +184,10 @@ def export_experimental(db, output: Path, cfg: dict) -> dict:
                        ("summary", summary)):
         _write_csv(output / f"{name}.csv", rows)
         _write_json(output / f"{name}.json", rows)
-    _write_json(output / "state.json", {"signals": snapshots, "history": history,
-                                         "controls": controls, "control_history": control_history})
+    _write_json(output / "state.json", {
+        "signals": snapshots, "history": [seed_observation(row) for row in history],
+        "controls": controls,
+        "control_history": [seed_observation(row) for row in control_history]})
     offsets = [int(row["session_offset"]) for row in history if row.get("session_offset") is not None]
     generated = datetime.now(ZoneInfo("Asia/Tokyo")).isoformat(timespec="seconds")
     index = {
