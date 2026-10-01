@@ -2,9 +2,9 @@ logic_version: "2026.09-v8-quarterly-earnings"
 strategy_version: "pivot-consensus-v1"
 threshold_version: "2026.08-v6-control"
 schema_version: "3.1"
-export_schema_version: "3.1"
+export_schema_version: "3.2"
 experimental_version: "2026.09-exp-v2-quarterly-earnings"
-experimental_export_schema_version: "2.0"
+experimental_export_schema_version: "2.1"
 experiment_start_date: "2026-09-04"
 free_data:
   update_queue:

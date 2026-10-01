@@ -37,7 +37,8 @@ def seed_validation(db: Database, base_url: str | None) -> bool:
         return False
 
 
-def export_validation(db: Database, output: Path, cfg: dict) -> dict:
+def export_validation(db: Database, output: Path, cfg: dict,
+                      corporate_diagnostics: dict | None = None) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     signals_raw, history_raw = db.validation_rows()
     controls_raw, control_history_raw = db.control_validation_rows()
@@ -83,6 +84,9 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
                        for row in diagnostics]
     _write_csv(output / "fundamental_diagnostics.csv", diagnostics_csv)
     _write_json(output / "fundamental_diagnostics.json", diagnostics)
+    _write_json(output / "corporate_action_diagnostics.json", corporate_diagnostics or {
+        "checked_observations": 0, "corporate_action_adjusted": 0,
+        "anomaly_excluded": 0, "price_inconsistent": 0, "examples": []})
     for name, rows in (("signals", signals), ("signal_history", history),
                        ("performance", performance), ("controls", controls),
                        ("control_performance", control_performance)):
@@ -112,6 +116,7 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
         "controls.csv", "controls.json", "control_performance.csv",
         "control_performance.json", "summary.csv", "summary.json",
         "fundamental_diagnostics.csv", "fundamental_diagnostics.json",
+        "corporate_action_diagnostics.json",
     ]
     coverage = annual_eps_coverage_summary(diagnostic_raw, cfg)
     index = {
@@ -128,6 +133,10 @@ def export_validation(db: Database, output: Path, cfg: dict) -> dict:
         "control_performance_count": len(control_performance),
         "summary_count": len(summary_rows),
         "fundamental_diagnostics_count": len(diagnostics),
+        "corporate_action_diagnostics": {key: (corporate_diagnostics or {}).get(key, 0)
+                                         for key in ("checked_observations",
+                                                     "corporate_action_adjusted",
+                                                     "anomaly_excluded", "price_inconsistent")},
         "diagnostic_schema_version": "2.0",
         "annual_eps_coverage": coverage,
         "observation_start": min(dates + observation_dates) if dates or observation_dates else None,
@@ -274,6 +283,9 @@ def _control_performance_rows(controls: list[dict], history: list[dict], horizon
             obs = observations.get(int(horizon))
             suffix = f"{horizon}d"
             out[f"return_{suffix}_pct"] = obs.get("return_abs") if obs else None
+            out[f"performance_status_{suffix}"] = obs.get("performance_status") if obs else None
+            out[f"anomaly_reason_{suffix}"] = obs.get("anomaly_reason") if obs else None
+            out[f"corporate_action_flag_{suffix}"] = obs.get("corporate_action_flag") if obs else None
             out[f"benchmark_relative_{suffix}_pct"] = (
                 obs.get("benchmark_relative_return") if obs else None)
         latest = max(observations.values(), key=lambda row: int(row["session_offset"]), default={})
@@ -330,6 +342,13 @@ def _performance_rows(signals: list[dict], history: list[dict],
             signal_return = obs.get("return_abs") if obs else None
             market_excess = obs.get("benchmark_relative_return") if obs else None
             out[f"return_{suffix}_pct"] = signal_return
+            out[f"performance_status_{suffix}"] = obs.get("performance_status") if obs else None
+            out[f"anomaly_reason_{suffix}"] = obs.get("anomaly_reason") if obs else None
+            out[f"corporate_action_flag_{suffix}"] = obs.get("corporate_action_flag") if obs else None
+            out[f"corporate_action_type_{suffix}"] = obs.get("corporate_action_type") if obs else None
+            out[f"split_ratio_{suffix}"] = obs.get("split_ratio") if obs else None
+            out[f"corporate_action_date_{suffix}"] = obs.get("corporate_action_date") if obs else None
+            out[f"price_adjustment_status_{suffix}"] = obs.get("price_adjustment_status") if obs else None
             out[f"market_return_{suffix}_pct"] = (
                 signal_return - market_excess
                 if signal_return is not None and market_excess is not None else None)
@@ -387,7 +406,9 @@ def _summary_rows(performance: list[dict], cfg: dict) -> list[dict]:
             ("EXPERIMENTAL_COMBINATION", row.get("experimental_combination")),
         ]
         for horizon in cfg["tracking"]["horizons"]:
-            if row.get(f"return_{horizon}d_pct") is None:
+            if (row.get(f"return_{horizon}d_pct") is None
+                    and row.get(f"performance_status_{horizon}d") not in
+                    {"ANOMALY_EXCLUDED", "PRICE_DATA_INCONSISTENT"}):
                 continue
             for dimension, value in dimensions:
                 if value not in (None, ""):
@@ -414,6 +435,13 @@ def _summary_rows(performance: list[dict], cfg: dict) -> list[dict]:
             "group_value": value,
             "horizon_days": horizon,
             "sample_count": len(returns),
+            "valid_n": len(returns),
+            "excluded_anomaly_n": sum(item.get(f"performance_status_{horizon}d") ==
+                                      "ANOMALY_EXCLUDED" for item in items),
+            "price_inconsistent_n": sum(item.get(f"performance_status_{horizon}d") ==
+                                        "PRICE_DATA_INCONSISTENT" for item in items),
+            "corporate_action_adjusted_n": sum(item.get(f"performance_status_{horizon}d") ==
+                                               "CORPORATE_ACTION_ADJUSTED" for item in items),
             "sample_strength": _sample_strength(len(returns), cfg),
             "average_return_pct": _mean(returns),
             "median_return_pct": _median(returns),

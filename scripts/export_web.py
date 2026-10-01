@@ -28,6 +28,7 @@ from engine.experimental import (analyze_experimental_universe, export_experimen
 from engine.models import SetupState
 from engine.validation import export_validation, seed_validation
 from engine.research import export_research, run_research, seed_research
+from engine.performance_repair import action_candidates, repair_validation
 from engine.annual_eps import annual_eps_profile, diagnostic_row
 from engine.quarterly_fundamentals import quarterly_diagnostic, quarterly_profile
 from engine.state_machine.core_input import write_core_input_bundle
@@ -161,6 +162,21 @@ def export(refresh: bool, scope: str):
         errors = []
     if not raw:
         raise RuntimeError("公開用に分析できる保存株価がありません")
+    yahoo = YahooProvider()
+    split_candidates = action_candidates(db, raw)
+    action_map = {}
+    if split_candidates:
+        # Incremental 10d downloads can leave pre-split rows on the old basis.
+        fresh, refresh_errors = yahoo.histories(sorted(split_candidates), period="2y")
+        errors.extend(refresh_errors)
+        if fresh:
+            db.save_prices_bulk(fresh, yahoo.name)
+            raw.update(db.load_prices_many(list(fresh), yahoo.name))
+        for code in sorted(split_candidates):
+            try:
+                action_map[code] = yahoo.stock_splits(code)
+            except Exception as exc:
+                errors.append(f"{code}: 分割情報取得失敗 {exc}")
     try:
         benchmark = YahooProvider().history("TOPIX")
         benchmark_source = "1306 TOPIX連動ETF（Yahoo Finance）"
@@ -180,8 +196,10 @@ def export(refresh: bool, scope: str):
     experimental = analyze_experimental_universe(
         analyses, prepared, fundamentals, meta, benchmark, cfg)
     update_experimental_tracking(db, experimental, analyses, prepared, benchmark, meta, cfg)
+    corporate_diagnostics = repair_validation(db, raw, benchmark, action_map)
     research = run_research(db, analyses, prepared, benchmark, meta, cfg,
-                            workflow_started=workflow_started)
+                            workflow_started=workflow_started,
+                            corporate_actions=action_map)
     OUT.mkdir(parents=True, exist_ok=True)
     detail_dir = OUT / "details"
     detail_dir.mkdir(exist_ok=True)
@@ -302,7 +320,8 @@ def export(refresh: bool, scope: str):
         "diagnostics_files": ["data/quarterly_diagnostics.json",
                               "data/quarterly_diagnostics.csv"],
     }
-    validation = export_validation(db, ROOT / "public" / "dashboard" / "validation", cfg)
+    validation = export_validation(db, ROOT / "public" / "dashboard" / "validation", cfg,
+                                   corporate_diagnostics)
     diagnostic_codes = {row["code"] for row in db.load_fundamental_diagnostics()}
     scope_codes = {row["code"] for row in select_scope(db.load_securities(), scope)}
     raw_codes, prepared_codes = set(raw), set(prepared)
