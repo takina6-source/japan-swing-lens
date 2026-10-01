@@ -27,6 +27,16 @@ def _yfinance_client():
 class YahooProvider:
     name = "Yahoo Finance (補完・非公式)"
 
+    def stock_splits(self, code: str) -> list[tuple[str, float]]:
+        """Yahoo action ratios (new shares per old share), for validation diagnostics."""
+        yf = _yfinance_client()
+        symbol = "1306.T" if code == "TOPIX" else f"{code}.T"
+        series = yf.Ticker(symbol).splits
+        if series is None or series.empty:
+            return []
+        return [(str(pd.Timestamp(day).date()), float(ratio))
+                for day, ratio in series.items() if pd.notna(ratio) and float(ratio) > 0]
+
     def history(self, code: str, period: str = "2y") -> pd.DataFrame:
         yf = _yfinance_client()
         # YahooではTOPIX指数記号が安定しないため、JPXがTOPIX連動ETFとして

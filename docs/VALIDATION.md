@@ -139,6 +139,48 @@ Relative Return、MFE、MAEを同じ式で記録する。`performance`では各h
 - `excess_vs_matched`: Signal Return − Matched Control平均Return
 - Random / Matchedは平均と中央値、サンプル数も併記する
 
+## Corporate ActionとForward Returnの価格基準
+
+Forward ReturnはCore Signal、Random / Matched Control、Experimental、Research、1306 Market
+BenchmarkともYahoo `auto_adjust=True` の同一調整済みOHLC系列で再評価する。Entryの比較価格は
+Signal Snapshot内の固定`close`ではなく、現在の調整済み系列におけるSignal日（Researchの
+Open Entryは同日の調整済み`open`）を使う。Snapshotの価格、Signal ID、Control membership、
+ランキング、H1〜H4の定義は変えない。観測値だけを再計算し、同じ価格入力なら再実行結果は一致する。
+
+原因調査: Yahoo取得箇所は単体・一括とも`auto_adjust=True`で、`Adj Close`を個別に混在
+させていなかった。ただし通常の日次更新は直近10日をDBへ`INSERT OR REPLACE`し、古い行は
+以前の調整基準のまま残る。Signal / ControlのEntry価格も固定のため、分割後のForward価格
+だけ新基準となり、-90%や数百万%以上の値が生じた。CoreとResearchは共通
+`path_metrics`、Experimentalは同じ式を独立実装していた。現在は保存済み観測値を共通の
+`performance_repair`で再評価する。固定Snapshot価格は診断用raw priceとして保持する。
+
+分割候補は固定Entryと現在の調整済み価格の差、または直近系列の50%超の段差から検出し、
+候補銘柄の2年分を再取得する。Yahoo `Stock Splits`を優先して日付・比率を記録する。
+明示的actionが欠けても価格基準の大差があれば`疑い`として記録する。調整済み系列に
+日次50%超の段差、またはForward Returnの絶対値500%超が残れば`ANOMALY_EXCLUDED`とし、
+Return・Excess ReturnをN/Aにする。調整済みEntryやForward日を取得できず旧Returnが
+50%超なら`PRICE_DATA_INCONSISTENT`としてN/Aにする。異常を数値だけで削除せず、
+`anomaly_reason`とraw / corrected priceを保持する。
+
+`validation/corporate_action_diagnostics.json`には確認件数、補正件数、除外件数、価格不整合件数、
+銘柄別の例を出力する。Observationには`performance_status`、`corporate_action_flag`、
+`corporate_action_type`、`split_ratio`、`corporate_action_date`、
+`price_adjustment_status`を追加した。Performanceのhorizon別列、Summaryの`valid_n`、
+`excluded_anomaly_n`、`price_inconsistent_n`、`corporate_action_adjusted_n`は追加列であり、
+従来列は維持する。`sample_count`は有効なReturn数と同じ意味とする。
+
+保存済みDBの修復は`python scripts/repair_validation_history.py --db data/momentum.db`
+で行う。既存SignalとControl membershipは削除・再選択せず、4種の履歴観測値とResearch
+観測値を再計算してValidation / Experimental / ResearchのPerformance・Summaryを再出力する。
+調整済み履歴が得られない古い正常範囲の観測は無理に書き換えず、異常値は集計から外す。
+公開stateを次回取り込んでも、毎日の実行で再評価する。Signal生成時の過去判定は再実行しない。
+
+2026-10-01公開版の確認例: 8766の2026-09-17 Signal / T+5はraw -93.64%から
+調整後+22.44%、7082の2026-09-11 Signal / T+10は約1.2億%から約-0.004%。
+8377の2026-09-18 Signal / T+5はYahoo調整済み系列にも日次約-90%の段差が残り、
+明示的な分割情報も得られないため`ANOMALY_EXCLUDED`となる。値はYahooの後日再調整で
+変わり得るため、再実行時の診断ファイルで確認する。
+
 ## Validation Summary
 
 `summary.csv` / `summary.json`はVersionを跨がず、horizon別に全Signal、初期State、Breakout数、

@@ -21,6 +21,7 @@ from ..controls import (deterministic_random_codes, matching_distance)
 from ..database import Database
 from ..models import SetupState
 from ..validation_engine import path_metrics, price_on_or_before
+from ..performance_repair import repair_research
 from .entry import simulate_entry_methods
 from .gates import (candidate_gate, checkpoint_gate, family_correction,
                     final_decision)
@@ -50,7 +51,8 @@ def seed_research(db: Database, base_url: str | None) -> bool:
 
 def run_research(db: Database, analyses: list, frames: dict[str, pd.DataFrame],
                  benchmark: pd.DataFrame, security_meta: dict[str, dict], cfg: dict,
-                 *, workflow_started: float | None = None) -> dict[str, Any]:
+                 *, workflow_started: float | None = None,
+                 corporate_actions: dict | None = None) -> dict[str, Any]:
     started = time.perf_counter()
     store = ResearchStore(db)
     hypotheses = hypothesis_registry()
@@ -70,6 +72,7 @@ def run_research(db: Database, analyses: list, frames: dict[str, pd.DataFrame],
     matching_started = time.perf_counter()
     controls_created = _create_research_controls(store, analyses, frames, security_meta, cfg)
     _track_research(store, frames, benchmark, cfg)
+    corporate_diagnostics = repair_research(db, frames, benchmark, corporate_actions)
     matching_seconds = time.perf_counter() - matching_started
     compacted_rows = store.compact_matured_history()
 
@@ -113,16 +116,17 @@ def run_research(db: Database, analyses: list, frames: dict[str, pd.DataFrame],
     return {"hypotheses": hypotheses, "family": family, "evidence": evidence,
             "checkpoints": checkpoint_rows, "family_result": family_result,
             "performance_metrics": performance, "storage_metrics": storage,
-            "trading_session_progress": trading_session_progress}
+            "trading_session_progress": trading_session_progress,
+            "corporate_action_diagnostics": corporate_diagnostics}
 
 
 def export_research(db: Database, output: Path, cfg: dict,
                     run_result: dict[str, Any] | None = None) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
     store = ResearchStore(db)
-    hypotheses = run_result.get("hypotheses") if run_result else hypothesis_registry()
-    family = run_result.get("family") if run_result else family_registry()
-    evidence = run_result.get("evidence") if run_result else _evidence(db, store, hypotheses)
+    hypotheses = (run_result or {}).get("hypotheses") or hypothesis_registry()
+    family = (run_result or {}).get("family") or family_registry()
+    evidence = (run_result or {}).get("evidence") or _evidence(db, store, hypotheses)
     checkpoint_rows = [_clean_row(row) for row in store.rows(
         "research_checkpoint_evaluations", "hypothesis_version,checkpoint_name")]
     family_results = store.rows("research_family_results", "family_id,family_version")
@@ -188,6 +192,8 @@ def export_research(db: Database, output: Path, cfg: dict,
     _write_json(output / "intraday_diagnostics.json", intraday)
     _write_json(output / "storage_metrics.json", latest_telemetry.get("storage", {}))
     _write_json(output / "performance_metrics.json", latest_telemetry.get("performance", {}))
+    _write_json(output / "corporate_action_diagnostics.json",
+                run_result.get("corporate_action_diagnostics", {}) if run_result else {})
     state = {
         "research_logic_version": RESEARCH_LOGIC_VERSION,
         "hypotheses": store.rows("research_hypotheses", "hypothesis_version"),
@@ -203,6 +209,7 @@ def export_research(db: Database, output: Path, cfg: dict,
                  "performance.json", "performance.csv", "checkpoints.json",
                  "intraday_diagnostics.json", "storage_metrics.json",
                  "performance_metrics.json"]
+    available.append("corporate_action_diagnostics.json")
     index = {
         "generated_at": generated,
         "research_logic_version": RESEARCH_LOGIC_VERSION,
@@ -537,7 +544,8 @@ def _evidence_rows(db: Database, store: ResearchStore) -> dict[str, list[dict]]:
     member_type = {(row["control_group_id"], row["control_code"]): row["control_type"]
                    for row in controls}
     for row in control_history:
-        if member_type.get((row["control_group_id"], row["control_code"])) == "MATCHED":
+        if (member_type.get((row["control_group_id"], row["control_code"])) == "MATCHED"
+                and row.get("return_abs") is not None):
             control_groups[(row["signal_id"], int(row["session_offset"]))].append(
                 float(row["return_abs"]))
     h1, h4 = [], []
@@ -545,13 +553,15 @@ def _evidence_rows(db: Database, store: ResearchStore) -> dict[str, list[dict]]:
         origin, phase = _origin_phase(snapshot["signal_date"])
         obs10 = history_at.get((snapshot["signal_id"], 10))
         controls10 = control_groups.get((snapshot["signal_id"], 10), [])
-        if obs10 and controls10 and int(snapshot.get("aligned_count") or 0) in {3, 4, 5}:
+        if (obs10 and obs10.get("return_abs") is not None and controls10
+                and int(snapshot.get("aligned_count") or 0) in {3, 4, 5}):
             h1.append({"code": snapshot["code"], "date": snapshot["signal_date"],
                        "group": "4PLUS" if int(snapshot["aligned_count"]) >= 4 else "3",
                        "value": float(obs10["return_abs"]) - statistics.fmean(controls10),
                        "data_origin": origin, "evaluation_phase": phase})
         obs5 = history_at.get((snapshot["signal_id"], 5))
-        if obs5 and int(snapshot.get("aligned_count") or 0) in {4, 5}:
+        if (obs5 and obs5.get("return_abs") is not None
+                and int(snapshot.get("aligned_count") or 0) in {4, 5}):
             h4.append({"code": snapshot["code"], "date": snapshot["signal_date"],
                        "group": str(int(snapshot["aligned_count"])),
                        "value": float(bool(obs5.get("failed_breakout"))) * 100,
@@ -569,7 +579,8 @@ def _evidence_rows(db: Database, store: ResearchStore) -> dict[str, list[dict]]:
                              for row in members}
     research_controls: dict[tuple[str, int], list[float]] = defaultdict(list)
     for row in store.rows("research_control_history"):
-        if research_control_type.get((row["control_group_id"], row["control_code"])) == "MATCHED":
+        if (research_control_type.get((row["control_group_id"], row["control_code"])) == "MATCHED"
+                and row.get("return_abs") is not None):
             research_controls[(row["validation_subject_id"], int(row["session_offset"]))].append(
                 float(row["return_abs"]))
     h2 = []
@@ -581,7 +592,8 @@ def _evidence_rows(db: Database, store: ResearchStore) -> dict[str, list[dict]]:
         payload = event.get("payload") or _loads(event.get("payload_json"))
         method = payload.get("method")
         obs = research_at.get((subject["validation_subject_id"], 10))
-        if method == "T_PLUS_1_OPEN" and payload.get("watch_to_breakout_5of5") is True and obs:
+        if (method == "T_PLUS_1_OPEN" and payload.get("watch_to_breakout_5of5") is True
+                and obs and obs.get("return_abs") is not None):
             control_values = research_controls.get((subject["validation_subject_id"], 10), [])
             if control_values:
                 h2.append({"code": subject["code"], "date": subject["anchor_date"],
@@ -589,7 +601,7 @@ def _evidence_rows(db: Database, store: ResearchStore) -> dict[str, list[dict]]:
                                     - cost_model()["BASE"]["total"],
                            "data_origin": subject["data_origin"],
                            "evaluation_phase": subject["evaluation_phase"]})
-        if method in {"T_PLUS_1_OPEN", "PIVOT_STOP"} and obs:
+        if method in {"T_PLUS_1_OPEN", "PIVOT_STOP"} and obs and obs.get("return_abs") is not None:
             breakout_id = payload.get("source_breakout_event_id") or ""
             pair_map[breakout_id][method] = {"subject": subject, "observation": obs,
                                              "payload": payload}

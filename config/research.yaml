@@ -1,7 +1,7 @@
 versions:
   research_logic_version: "2026.09-research-v1"
   registry_schema_version: "1.0"
-  research_schema_version: "1.0"
+  research_schema_version: "1.1"
   control_selection_version: "research-control-v1"
   validation_engine_version: "validation-subject-v1"
   cost_model_version: "research-cost-v1"

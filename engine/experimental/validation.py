@@ -227,6 +227,8 @@ def _control_performance(controls, history, horizons):
         for horizon in horizons:
             row = obs.get(int(horizon))
             out[f"return_{horizon}d_pct"] = row.get("return_abs") if row else None
+            out[f"performance_status_{horizon}d"] = row.get("performance_status") if row else None
+            out[f"anomaly_reason_{horizon}d"] = row.get("anomaly_reason") if row else None
         latest = max(obs.values(), key=lambda row: row["session_offset"], default={})
         out["mfe_to_date_pct"], out["mae_to_date_pct"] = latest.get("mfe"), latest.get("mae")
         output.append(out)
@@ -249,6 +251,13 @@ def _performance(signals, history, controls, horizons):
             value = row.get("return_abs") if row else None
             market_excess = row.get("benchmark_relative_return") if row else None
             out[f"return_{suffix}_pct"] = value
+            out[f"performance_status_{suffix}"] = row.get("performance_status") if row else None
+            out[f"anomaly_reason_{suffix}"] = row.get("anomaly_reason") if row else None
+            out[f"corporate_action_flag_{suffix}"] = row.get("corporate_action_flag") if row else None
+            out[f"corporate_action_type_{suffix}"] = row.get("corporate_action_type") if row else None
+            out[f"split_ratio_{suffix}"] = row.get("split_ratio") if row else None
+            out[f"corporate_action_date_{suffix}"] = row.get("corporate_action_date") if row else None
+            out[f"price_adjustment_status_{suffix}"] = row.get("price_adjustment_status") if row else None
             out[f"excess_vs_market_{suffix}_pct"] = market_excess
             for kind in ("RANDOM", "MATCHED"):
                 values = [item.get(f"return_{suffix}_pct") for item in baselines[(signal["experimental_signal_id"], kind)]]
@@ -285,7 +294,9 @@ def _summary(performance, cfg):
                 ("EARNINGS_GROWTH_TYPE", "TURNAROUND" if row.get("turnaround_flag") else "NORMAL"),
             ])
         for horizon in cfg["tracking"]["horizons"]:
-            if row.get(f"return_{horizon}d_pct") is None:
+            if (row.get(f"return_{horizon}d_pct") is None
+                    and row.get(f"performance_status_{horizon}d") not in
+                    {"ANOMALY_EXCLUDED", "PRICE_DATA_INCONSISTENT"}):
                 continue
             for dimension, value in dimensions:
                 if value:
@@ -302,9 +313,18 @@ def _summary(performance, cfg):
         output.append({
             "experimental_version": version, "dimension": dimension, "group_value": value,
             "horizon_days": horizon, "sample_count": len(returns),
+            "valid_n": len(returns),
+            "excluded_anomaly_n": sum(item.get(f"performance_status_{horizon}d") ==
+                                      "ANOMALY_EXCLUDED" for item in items),
+            "price_inconsistent_n": sum(item.get(f"performance_status_{horizon}d") ==
+                                        "PRICE_DATA_INCONSISTENT" for item in items),
+            "corporate_action_adjusted_n": sum(item.get(f"performance_status_{horizon}d") ==
+                                               "CORPORATE_ACTION_ADJUSTED" for item in items),
             "sample_strength": _sample_strength(len(returns), cfg),
-            "average_return_pct": mean, "median_return_pct": statistics.median(returns),
-            "positive_rate_pct": sum(item > 0 for item in returns) / len(returns) * 100,
+            "average_return_pct": mean,
+            "median_return_pct": statistics.median(returns) if returns else None,
+            "positive_rate_pct": (sum(item > 0 for item in returns) / len(returns) * 100
+                                  if returns else None),
             "average_excess_vs_market_pct": _mean(market),
             "average_excess_vs_random_pct": _mean(random),
             "average_excess_vs_matched_pct": _mean(matched),
