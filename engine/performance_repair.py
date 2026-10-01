@@ -26,6 +26,11 @@ STATUS_COLUMNS = {
 }
 
 
+def seed_observation(row):
+    """Keep public seed state compact; diagnostics are reconstructed on each run."""
+    return {key: value for key, value in row.items() if key not in STATUS_COLUMNS}
+
+
 def _positive(value):
     try:
         number = float(value)

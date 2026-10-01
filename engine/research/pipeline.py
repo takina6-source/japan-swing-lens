@@ -21,7 +21,7 @@ from ..controls import (deterministic_random_codes, matching_distance)
 from ..database import Database
 from ..models import SetupState
 from ..validation_engine import path_metrics, price_on_or_before
-from ..performance_repair import repair_research
+from ..performance_repair import repair_research, seed_observation
 from .entry import simulate_entry_methods
 from .gates import (candidate_gate, checkpoint_gate, family_correction,
                     final_decision)
@@ -72,8 +72,8 @@ def run_research(db: Database, analyses: list, frames: dict[str, pd.DataFrame],
     matching_started = time.perf_counter()
     controls_created = _create_research_controls(store, analyses, frames, security_meta, cfg)
     _track_research(store, frames, benchmark, cfg)
-    corporate_diagnostics = repair_research(db, frames, benchmark, corporate_actions)
     matching_seconds = time.perf_counter() - matching_started
+    corporate_diagnostics = repair_research(db, frames, benchmark, corporate_actions)
     compacted_rows = store.compact_matured_history()
 
     evidence = _evidence(db, store, hypotheses)
@@ -203,7 +203,10 @@ def export_research(db: Database, output: Path, cfg: dict,
                   "research_control_history", "research_subject_history",
                   "research_checkpoint_evaluations", "research_results",
                   "research_family_results", "research_telemetry"):
-        state[table] = store.rows(table)
+        rows = store.rows(table)
+        state[table] = ([seed_observation(row) for row in rows]
+                        if table in {"research_control_history", "research_subject_history"}
+                        else rows)
     _write_json(output / "state.json", state)
     available = ["hypotheses.json", "families.json", "events.json", "events.csv",
                  "performance.json", "performance.csv", "checkpoints.json",
@@ -829,7 +832,14 @@ def _storage_metrics(db: Database, store: ResearchStore, compacted_rows: int) ->
     core = db.validation_rows()
     controls = db.control_validation_rows()
     experimental = db.experimental_rows()
-    validation_bytes = len(json.dumps([*core, *controls, experimental], default=str,
+    compact_core = (core[0], [seed_observation(row) for row in core[1]])
+    compact_controls = (controls[0], [seed_observation(row) for row in controls[1]])
+    compact_experimental = (experimental[0],
+                            [seed_observation(row) for row in experimental[1]],
+                            experimental[2],
+                            [seed_observation(row) for row in experimental[3]])
+    validation_bytes = len(json.dumps([*compact_core, *compact_controls,
+                                       compact_experimental], default=str,
                                       ensure_ascii=False).encode())
     members = store.rows("research_control_members")
     history = store.rows("research_control_history")
@@ -839,8 +849,13 @@ def _storage_metrics(db: Database, store: ResearchStore, compacted_rows: int) ->
         "research_subject_history", "research_checkpoint_evaluations",
         "research_results", "research_family_results")]
     membership_bytes = len(json.dumps(members, default=str, ensure_ascii=False).encode())
-    history_bytes = len(json.dumps(history, default=str, ensure_ascii=False).encode())
-    research_bytes = len(json.dumps(all_tables, default=str, ensure_ascii=False).encode())
+    history_bytes = len(json.dumps([seed_observation(row) for row in history],
+                                   default=str, ensure_ascii=False).encode())
+    compact_tables = [([seed_observation(row) for row in rows]
+                       if index in {5, 6} else rows)
+                      for index, rows in enumerate(all_tables)]
+    research_bytes = len(json.dumps(compact_tables, default=str,
+                                    ensure_ascii=False).encode())
     telemetry = store.rows("research_telemetry", "run_date,run_id")
     previous = ((telemetry[-1].get("payload") or {}).get("storage") or {}).get(
         "research_state_bytes", research_bytes) if telemetry else research_bytes
