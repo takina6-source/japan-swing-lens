@@ -25,7 +25,7 @@ on:
         default: "phase2a-cutover-v1"
         type: string
   schedule:
-    - cron: "30 21 * * 1-5" # 翌朝06:30 JST（前営業日のYahoo日足確定後）
+    - cron: "0 18 * * 0-4" # JST 月〜金 03:00予定（GitHub Actions の遅延を見込み朝レポート前に完了させる）
 
 permissions: {}
 
