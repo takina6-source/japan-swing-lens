@@ -1,0 +1,23 @@
+name: State storage Phase 1 verification
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e '.[jquants,test]'
+      - name: Full tests (offline, no Pages credentials)
+        run: python -m pytest -q
+      - name: Fixed-input Core and Experimental regression
+        run: python scripts/fixed_input_regression.py

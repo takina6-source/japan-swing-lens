@@ -11,7 +11,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import requests
+from ..state_io import import_seed, load_remote
 
 from ..controls import control_group_id, deterministic_random_codes, matching_distance
 from ..performance_repair import seed_observation
@@ -20,16 +20,9 @@ from ..performance_repair import seed_observation
 def seed_experimental(db, base_url: str | None) -> bool:
     if not base_url:
         return False
-    try:
-        response = requests.get(base_url.rstrip("/") + "/state.json", timeout=30)
-        if response.status_code != 200:
-            return False
-        value = response.json()
-        db.import_experimental_rows(value.get("signals", []), value.get("history", []),
-                                    value.get("controls", []), value.get("control_history", []))
-        return True
-    except Exception:
-        return False
+    payload = load_remote(base_url, "experimental")
+    import_seed(db, payload, "experimental")
+    return True
 
 
 def update_experimental_tracking(db, experimental: dict, core_analyses: list,

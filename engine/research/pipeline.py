@@ -15,7 +15,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import requests
+from ..state_io import import_seed, load_remote
 
 from ..controls import (deterministic_random_codes, matching_distance)
 from ..database import Database
@@ -39,14 +39,9 @@ from .storage import ResearchStore
 def seed_research(db: Database, base_url: str | None) -> bool:
     if not base_url:
         return False
-    try:
-        response = requests.get(base_url.rstrip("/") + "/state.json", timeout=30)
-        if response.status_code != 200:
-            return False
-        ResearchStore(db).import_state(response.json())
-        return True
-    except Exception:
-        return False
+    payload = load_remote(base_url, "research")
+    import_seed(db, payload, "research")
+    return True
 
 
 def run_research(db: Database, analyses: list, frames: dict[str, pd.DataFrame],
