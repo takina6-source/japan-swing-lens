@@ -51,6 +51,8 @@ jobs:
         run: python -m pytest -q
       - name: Verify fixed-input regression
         run: python scripts/fixed_input_regression.py
+      - name: Verify lossless browser downloads
+        run: node tests/js/downloads.test.cjs
 
   analyze-and-publish:
     name: Analyze and publish

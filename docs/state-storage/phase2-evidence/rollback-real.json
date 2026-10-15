@@ -1,0 +1,10 @@
+{
+  "prepared": true,
+  "deployed": false,
+  "bytes": 923060268,
+  "original_state_sha256": {
+    "validation": "832eef5c5e5109d936f2f60055e3b145593ba565d6056d0a20617288b023f113",
+    "experimental": "c06fe262adcb52bb43c8839c477ca182d279b7d03ec396554d5076c1229a6412",
+    "research": "2cb5f85866f975bee2624110678c9e7f0f5ee6b21436491ec7f3dc85d2c32a15"
+  }
+}
