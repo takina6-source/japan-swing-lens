@@ -149,6 +149,8 @@ jobs:
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify the deployed State generation and display files
+        run: python scripts/verify_state_publication.py --root-url https://takina6-source.github.io/japan-swing-lens --ledger "${{ runner.temp }}/continuity-release/generation.json"
 
   phase2a-production-shadow:
     name: Phase 2A production shadow (paused / manual only)

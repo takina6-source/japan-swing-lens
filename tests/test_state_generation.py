@@ -86,3 +86,54 @@ def test_full_export_can_use_captured_input_without_network(tmp_path,monkeypatch
     export(False,'主要500+Growth',db_path=dbpath,dashboard=tmp_path/'output',captured_input=fixed)
     assert json.loads((tmp_path/'output/data/snapshot.json').read_text())['universe_count']==1
     assert (tmp_path/'output/data/market-sessions.json').exists()
+
+
+def test_nested_publication_target_is_rejected_without_copying(tmp_path):
+    source=tmp_path/'source';source.mkdir()
+    with pytest.raises(StateError,match='separate'):
+        finalize(source,source/'nested',run_id=100,commit='a'*40,market_date='2026-10-15')
+    assert list(source.iterdir())==[]
+
+
+def test_floor_rejects_lost_ids_and_changed_holdout_without_exposing_target(tmp_path):
+    from engine.state_generation import continuity_floor,check_continuity_floor
+    source=snapshot(tmp_path)
+    values={k:json.loads((source/k/'state.json').read_bytes()) for k in ('validation','experimental','research')}
+    floor=continuity_floor(values)
+    values['validation']['signals']=[]
+    with pytest.raises(StateError,match='immutable IDs'):
+        check_continuity_floor(values['validation'],'validation',floor)
+    values['research']['research_events'][0]['evaluation_phase']='DISCOVERY-CHANGED'
+    with pytest.raises(StateError,match='HOLDOUT'):
+        check_continuity_floor(values['research'],'research',floor)
+
+
+def test_completed_trend_accounting_converges_and_contains_exact_bytes(tmp_path):
+    import pandas as pd
+    source=snapshot(tmp_path)
+    (source/'data').mkdir()
+    dates=[str(d.date()) for d in pd.bdate_range(end='2026-10-14',periods=8)]
+    history=[{'market_date':d,'generation_id':f'gh-{i+1}','format':'gzip-v1',
+              'pages_bytes':10000+i*17,'logical_state_bytes':20000,'compressed_state_bytes':2000}
+             for i,d in enumerate(dates[:-1])]
+    target=tmp_path/'with-trends'
+    _,physical=finalize(source,target,run_id=100,commit='a'*40,market_date='2026-10-14',history=history,sessions=dates)
+    assert tree_bytes(target)==physical['pages_bytes']
+    assert physical['trend_7_sessions']['complete'] is True
+    assert (target/'research/storage_metrics.json').stat().st_size==16384
+    assert json.loads((target/'research/storage_metrics.json').read_bytes())['pages']['pages_bytes']==tree_bytes(target)
+
+
+def test_initial_approval_rejects_a_stale_source_before_downloading(tmp_path,monkeypatch):
+    from scripts.state_release import select
+    approval={'format':'jsl-cutover-approval-v1','approved':True,'approved_for_merge_and_deploy':True,
+              'archive_sha256':'a'*64,'local_sha256_confirmed':'a'*64,'source_run_id':10}
+    path=tmp_path/'approval.json';path.write_text(json.dumps(approval))
+    calls=[]
+    def gh(*args):
+        calls.append(args)
+        return '[[]]' if '--slurp' in args else '{"workflow_runs":[{"id":11}]}'
+    monkeypatch.setattr('scripts.state_release.gh',gh)
+    with pytest.raises(StateError,match='stale'):
+        select(tmp_path/'authority.json',path)
+    assert not any('download' in call for call in calls)

@@ -21,7 +21,8 @@ def main():
     sessions = json.loads((args.source/'data/market-sessions.json').read_bytes())
     ledger, metrics = finalize(args.source, args.target, run_id=args.run_id, commit=args.commit,
                                market_date=snapshot['as_of'], previous=authority.get('generation'),
-                               history=json.loads(args.history.read_bytes()), sessions=sessions)
+                               history=json.loads(args.history.read_bytes()), sessions=sessions,
+                               floor=json.loads(args.history.with_name('continuity-floor.json').read_bytes()))
     args.ledger_output.write_bytes(json_bytes(ledger))
     print(json.dumps(metrics, indent=2))
 

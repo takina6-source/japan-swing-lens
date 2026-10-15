@@ -11,6 +11,8 @@ import os
 import shutil
 import subprocess
 import sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -62,7 +64,8 @@ def capture(args):
         return {'index':[str(d) for d in frame.index], 'columns':list(frame.columns),
                 'data': [[float(v) if math.isfinite(float(v)) else None for v in row]
                          for row in frame.itertuples(index=False,name=None)]}
-    value = {'names':names,'frames':{k:frame_value(v) for k,v in frames.items()},
+    value = {'clock':datetime.now(ZoneInfo('Asia/Tokyo')).isoformat(timespec='seconds'),
+             'names':names,'frames':{k:frame_value(v) for k,v in frames.items()},
              'fundamentals':fundamentals,'sources':sources,'meta':meta,
              'benchmark':frame_value(benchmark),'actions':actions,
              'benchmark_source':'1306 TOPIX連動ETF（Yahoo Finance）'}
@@ -96,6 +99,12 @@ def worker(args):
     db_path = args.work/'replay.sqlite'
     shutil.copy2(args.db,db_path)
     fixed = inputs(args.inputs)
+    clock_text = fixed.get('clock', '2026-10-16T06:00:00+09:00')
+    clock = datetime.fromisoformat(clock_text)
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock.astimezone(tz) if tz is not None else clock.replace(tzinfo=None)
     source = args.pages
     ledger = None
     reports = []
@@ -137,13 +146,24 @@ def worker(args):
                 (output/kind/name).unlink(missing_ok=True)
         def no_network(*unused,**kwargs):
             raise AssertionError('network access during fixed-input replay')
-        with patch('requests.sessions.Session.request',no_network), patch('socket.create_connection',no_network):
+        with patch('requests.sessions.Session.request',no_network), patch('socket.create_connection',no_network), \
+             patch.object(module,'datetime',FixedDatetime), \
+             patch('engine.research.pipeline.datetime',FixedDatetime), \
+             patch('engine.research.registry.datetime',FixedDatetime):
             module.export(False,'主要500+Growth',db_path=db_path,dashboard=output,captured_input=fixed)
+            from engine.briefing import export_brief
+            from engine.committee_export import export_committee
+            from scripts.export_simple_changes import export as export_changes
+            export_changes(output,'',30,15)
+            export_brief(output,output/'briefing',load_config(),generated_at=clock_text,same_run_config=True)
+            export_committee(output,output/'committee',Path(__import__('engine.config',fromlist=['ROOT']).ROOT)/'schemas/investment_committee_engine.schema.json',
+                             config=load_config(),generated_at=clock_text,git_commit='a'*40)
+
         # Telemetry includes process times/SQLite size and is not a research result.
         excluded = {'research/storage_metrics.json','research/performance_metrics.json',
                     'research/state.json'}
         artifacts = {}
-        for directory in ('data','validation','experimental','research'):
+        for directory in ('data','validation','experimental','research','briefing','committee'):
             for path in sorted((output/directory).rglob('*.json')):
                 name = str(path.relative_to(output))
                 if name in excluded or name.endswith('/state.manifest.json'):
@@ -168,7 +188,8 @@ def worker(args):
             ledger,physical=finalize(output,args.work/f'compressed-{iteration}',run_id=100+iteration,commit='a'*40,
                                      market_date=json.loads((output/'data/snapshot.json').read_bytes())['as_of'],
                                      previous=ledger,history=history,
-                                     sessions=json.loads((output/'data/market-sessions.json').read_bytes()))
+                                     sessions=json.loads((output/'data/market-sessions.json').read_bytes()),
+                                     floor=json.loads((args.work/'continuity-floor.json').read_bytes()))
             source=args.work/f'compressed-{iteration}'
             reports[-1]['physical']=physical
         else:

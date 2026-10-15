@@ -9,7 +9,7 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
-from .state_io import StateError, _get, compress, decode, describe, import_seed, parse, sha256
+from .state_io import StateError, _get, compress, decode, describe, identities, import_seed, keys_for, parse, sha256
 from .state_backup import KINDS
 from .storage_metrics import metrics, tree_bytes
 
@@ -54,6 +54,53 @@ def validate_generation(value):
     return value
 
 
+
+# These primary keys are append-only under the existing research implementation.
+# Observation history is intentionally omitted: existing matured-history compaction
+# is not changed by this transport migration.
+IMMUTABLE = {
+    'validation': ('signals', 'controls'),
+    'experimental': ('signals', 'controls'),
+    'research': ('hypotheses', 'families', 'research_events', 'validation_subjects',
+                 'research_control_members', 'research_checkpoint_evaluations',
+                 'research_results', 'research_family_results'),
+}
+
+
+def continuity_floor(values):
+    result = {}
+    for kind in KINDS:
+        value = values[kind]
+        tables = {table: sorted(identities(value[table], keys_for(kind)[table]))
+                  for table in IMMUTABLE[kind]}
+        result[kind] = {'ids': tables}
+        if kind == 'research':
+            result[kind]['registry'] = {table: {json.dumps([row[k] for k in keys_for(kind)[table]]): row['payload']
+                                                for row in value[table]} for table in ('hypotheses', 'families')}
+            result[kind]['phases'] = {table: {json.dumps([row[k] for k in keys_for(kind)[table]]):
+                                               {k: row.get(k) for k in ('data_origin','evaluation_phase','research_version')}
+                                             for row in value[table]}
+                                      for table in ('research_events','validation_subjects')}
+    return result
+
+
+def check_continuity_floor(value, kind, floor):
+    for table, expected in floor[kind]['ids'].items():
+        if not {tuple(row) for row in expected} <= identities(value[table], keys_for(kind)[table]):
+            raise StateError(f'{kind}/{table}: immutable IDs disappeared during update')
+    if kind == 'research':
+        for table, expected in floor[kind]['registry'].items():
+            actual = {json.dumps([row[k] for k in keys_for(kind)[table]]): row['payload'] for row in value[table]}
+            if any(actual.get(key) != payload for key,payload in expected.items()):
+                raise StateError('frozen research definition changed during update')
+        for table,expected in floor[kind]['phases'].items():
+            actual = {json.dumps([row[k] for k in keys_for(kind)[table]]):
+                      {k: row.get(k) for k in ('data_origin','evaluation_phase','research_version')}
+                      for row in value[table]}
+            if any(actual.get(key) != labels for key,labels in expected.items()):
+                raise StateError('LIVE_FORWARD/HOLDOUT or version labels changed during update')
+
+
 def restore_generation(db, root_url: str, authority: dict, history_path: Path):
     """An independent Release/approved bootstrap fixes all three streams before import."""
     if authority.get('kind') == 'bootstrap':
@@ -96,11 +143,12 @@ def restore_generation(db, root_url: str, authority: dict, history_path: Path):
         import_seed(db, values[kind], kind)
     history_path.parent.mkdir(parents=True, exist_ok=True)
     history_path.write_bytes(json_bytes(history))
+    history_path.with_name('continuity-floor.json').write_bytes(json_bytes(continuity_floor(values)))
 
 
 def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_date: str,
              previous: dict | None = None, history: list | None = None,
-             sessions: list[str] | None = None):
+             sessions: list[str] | None = None, floor: dict | None = None):
     """Build and verify a complete replacement tree. Never touch the source tree."""
     if target.exists() or source.resolve() == target.resolve() or source.resolve() in target.resolve().parents:
         raise StateError('staging target must be new and separate from the source')
@@ -118,11 +166,17 @@ def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_dat
         ledger = {'format': FORMAT, 'generation_id': f'gh-{run_id}', 'run_id': run_id,
                   'producer_commit': commit, 'market_date': market_date,
                   'parent_sha256': sha256(json_bytes(previous)) if previous else None,
+                  'display_files': [name for name in ('briefing/latest.json','briefing/what-changed.json','committee/index.json')
+                                    if (source/name).is_file()],
                   'streams': {}, 'compressed_sha256': {}, 'storage_history_sha256': '0' * 64}
         for kind in KINDS:
             raw = read_plain(source, kind)
+            if floor is not None:
+                check_continuity_floor(parse(raw), kind, floor)
             packed = compress(raw)
             info = describe(raw, kind)
+            if info['latest_record_date'] and info['latest_record_date'] > market_date:
+                raise StateError('State observations are newer than the claimed market date')
             decode(packed, kind, compressed=True, expected=info)
             if gzip.decompress(packed) != raw:
                 raise StateError('lossless compression failed')
@@ -154,9 +208,15 @@ def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_dat
             (staged/'storage/history.json').write_bytes(history_raw)
             (staged/'state-generation.json').write_bytes(json_bytes(ledger))
             page_metrics = metrics(points, calendar)
-            (staged/'research/storage_metrics.json').write_bytes(json_bytes({
+            metric_bytes = json_bytes({
                 **legacy_metrics, 'research_budget_status': legacy_metrics.get('research_budget_status', legacy_metrics.get('budget_status')),
-                'budget_status': page_metrics['budget_status'], 'pages': page_metrics}))
+                'budget_status': page_metrics['budget_status'], 'pages': page_metrics})
+            # Reserve a fixed 16 KiB for the self-reporting metrics file. JSON
+            # permits trailing whitespace; size no longer oscillates with float
+            # representations or projected runway while counting its own bytes.
+            if len(metric_bytes) > 16384:
+                raise StateError('storage metrics exceeded reserved accounting slot')
+            (staged/'research/storage_metrics.json').write_bytes(metric_bytes + b' ' * (16384-len(metric_bytes)))
             size = tree_bytes(staged)
             if size == point['pages_bytes']:
                 break

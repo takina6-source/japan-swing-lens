@@ -84,6 +84,8 @@ jobs:
           name: phase2-continuation-evidence-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/capture-summary.json
+            ${{ runner.temp }}/fixed-input.json.gz
+            ${{ runner.temp }}/fixed-input.json.sha256
             ${{ runner.temp }}/continuation-report.json
             ${{ runner.temp }}/continuation.log
           if-no-files-found: error
