@@ -163,9 +163,12 @@ def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_dat
         if any(p.is_symlink() for p in source.rglob('*')):
             raise StateError('symlinks are not permitted in the staged publication')
         shutil.copytree(source, staged)
+        from .bulk_downloads import stage_downloads
+        bulk_manifest_sha = stage_downloads(staged)
         ledger = {'format': FORMAT, 'generation_id': f'gh-{run_id}', 'run_id': run_id,
                   'producer_commit': commit, 'market_date': market_date,
                   'parent_sha256': sha256(json_bytes(previous)) if previous else None,
+                  'bulk_downloads_sha256': bulk_manifest_sha,
                   'display_files': [name for name in ('briefing/latest.json','briefing/what-changed.json','committee/index.json')
                                     if (source/name).is_file()],
                   'streams': {}, 'compressed_sha256': {}, 'storage_history_sha256': '0' * 64}
@@ -189,7 +192,7 @@ def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_dat
             ledger['compressed_sha256'][kind] = sha256(packed)
         validate_generation(ledger)
         point = {'market_date': market_date, 'generation_id': ledger['generation_id'],
-                 'format': 'gzip-v1', 'pages_bytes': 0,
+                 'format': 'gzip-bulk-v1', 'pages_bytes': 0,
                  'logical_state_bytes': sum(i['bytes'] for i in ledger['streams'].values()),
                  'compressed_state_bytes': sum((staged/k/'state.json.gz').stat().st_size for k in KINDS)}
         prior = list(history or [])
@@ -208,6 +211,10 @@ def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_dat
             (staged/'storage/history.json').write_bytes(history_raw)
             (staged/'state-generation.json').write_bytes(json_bytes(ledger))
             page_metrics = metrics(points, calendar)
+            previous_run = history[-1] if history else None
+            page_metrics['previous_run_delta_bytes'] = (
+                point['pages_bytes'] - previous_run['pages_bytes']
+                if previous_run and previous_run['format'] == point['format'] else None)
             metric_bytes = json_bytes({
                 **legacy_metrics, 'research_budget_status': legacy_metrics.get('research_budget_status', legacy_metrics.get('budget_status')),
                 'budget_status': page_metrics['budget_status'], 'pages': page_metrics})

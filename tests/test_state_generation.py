@@ -29,9 +29,11 @@ def test_finalize_preserves_source_bytes_and_exact_physical_accounting(tmp_path)
     assert metrics['budget_status'] == 'YELLOW'
     assert metrics['projected_180_sessions_bytes'] is None
     second = tmp_path/'second'
-    second_ledger, _ = finalize(target,second,run_id=101,commit='a'*40,market_date='2026-10-14',
+    second_ledger, second_metrics = finalize(target,second,run_id=101,commit='a'*40,market_date='2026-10-14',
                                 previous=ledger,history=json.loads((target/'storage/history.json').read_bytes()))
     assert len(json.loads((second/'storage/history.json').read_bytes())) == 1
+    assert second_metrics['previous_run_delta_bytes']==second_metrics['pages_bytes']-metrics['pages_bytes']
+    assert second_metrics['previous_delta_bytes'] is None
     with pytest.raises(StateError,match='rollback'):
         finalize(target,tmp_path/'old',run_id=99,commit='a'*40,market_date='2026-10-14',previous=ledger)
 
@@ -113,7 +115,7 @@ def test_completed_trend_accounting_converges_and_contains_exact_bytes(tmp_path)
     source=snapshot(tmp_path)
     (source/'data').mkdir()
     dates=[str(d.date()) for d in pd.bdate_range(end='2026-10-14',periods=8)]
-    history=[{'market_date':d,'generation_id':f'gh-{i+1}','format':'gzip-v1',
+    history=[{'market_date':d,'generation_id':f'gh-{i+1}','format':'gzip-bulk-v1',
               'pages_bytes':10000+i*17,'logical_state_bytes':20000,'compressed_state_bytes':2000}
              for i,d in enumerate(dates[:-1])]
     target=tmp_path/'with-trends'
@@ -137,3 +139,27 @@ def test_initial_approval_rejects_a_stale_source_before_downloading(tmp_path,mon
     with pytest.raises(StateError,match='stale'):
         select(tmp_path/'authority.json',path)
     assert not any('download' in call for call in calls)
+
+
+def test_rollback_prepares_exact_legacy_bytes_and_rejects_an_older_backup(tmp_path):
+    from engine.state_backup import create_backup
+    from engine.state_io import sha256
+    from scripts.state_rollback import prepare
+    source=snapshot(tmp_path)
+    archive=tmp_path/'original.zip'
+    create_backup(source,archive,generation='same',market_date='2026-10-14')
+    compressed=tmp_path/'compressed'
+    finalize(source,compressed,run_id=100,commit='a'*40,market_date='2026-10-14')
+    target=tmp_path/'legacy-restored'
+    result=prepare(compressed,archive,target,sha256(archive.read_bytes()))
+    assert result['deployed'] is False
+    for kind in ('validation','experimental','research'):
+        assert (target/kind/'state.json').read_bytes()==(source/kind/'state.json').read_bytes()
+        assert not (target/kind/'state.json.gz').exists()
+    import gzip
+    raw=gzip.decompress((compressed/'validation/state.json.gz').read_bytes())+b' '
+    (compressed/'validation/state.json.gz').write_bytes(gzip.compress(raw,mtime=0))
+    (compressed/'validation/state.manifest.json').write_text(json.dumps(describe(raw,'validation')))
+    with pytest.raises(StateError,match='reconcile newer data'):
+        prepare(compressed,archive,tmp_path/'must-not-appear',sha256(archive.read_bytes()))
+    assert not (tmp_path/'must-not-appear').exists()
