@@ -1,0 +1,8 @@
+Source: https://github.com/takina6-source/japan-swing-lens/actions/runs/38713465395
+Code commit: a64526ae673b64f71f485c58b8bc4709d1f03db9
+Job: 116350323850; Ubuntu 24.04; CPython 3.12.15
+Excerpt: commands and result lines; no credentials or environment values.
+2026-10-15T09:31:05.4896177Z ##[group]Run python -m pytest -q
+2026-10-15T09:31:14.6115576Z 300 passed in 8.67s
+2026-10-15T09:31:14.7488890Z ##[group]Run python scripts/fixed_input_regression.py
+2026-10-15T09:31:16.1750318Z fixed-input regression passed: 11 artifacts

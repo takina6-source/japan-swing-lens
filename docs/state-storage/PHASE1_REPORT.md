@@ -141,7 +141,7 @@ Run日は市場日ではなく、日本市場の休日調整もしていない�
 
 ## テスト・再現コマンド
 
-macOS / Python 3.14：改修前275 passed、提案300 passed。Ubuntu / Python 3.12の初回 [PR CI 38712482579](https://github.com/takina6-source/japan-swing-lens/actions/runs/38712482579) では299 passed、固定入力回帰11 artifact成功。その後cold cacheの空gzip Seed拒否テストを追加し、最終CIでも再確認する。ログは [evidence](evidence/) に収録した。
+macOS / Python 3.14：改修前275 passed、提案300 passed。Ubuntu / Python 3.12の [最終コードCI 38713465395](https://github.com/takina6-source/japan-swing-lens/actions/runs/38713465395) でも300 passed、固定入力回帰11 artifact成功。cold cacheの空gzip Seed拒否テストを含む。ログは [evidence](evidence/) に収録した。
 
 ```sh
 python -m pytest -q
