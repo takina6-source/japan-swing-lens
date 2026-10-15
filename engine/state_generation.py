@@ -155,7 +155,7 @@ def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_dat
             (staged/'state-generation.json').write_bytes(json_bytes(ledger))
             page_metrics = metrics(points, calendar)
             (staged/'research/storage_metrics.json').write_bytes(json_bytes({
-                **legacy_metrics, 'research_budget_status': legacy_metrics.get('budget_status'),
+                **legacy_metrics, 'research_budget_status': legacy_metrics.get('research_budget_status', legacy_metrics.get('budget_status')),
                 'budget_status': page_metrics['budget_status'], 'pages': page_metrics}))
             size = tree_bytes(staged)
             if size == point['pages_bytes']:

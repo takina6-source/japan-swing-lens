@@ -1,6 +1,7 @@
 """Physical publication accounting; history is measured, never synthesized."""
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 LIMIT_BYTES = 1_000_000_000  # Conservative decimal interpretation of GitHub's 1 GB.
@@ -39,9 +40,10 @@ def assess(size: int, growth: float | None) -> dict:
               or (projection is not None and projection >= LIMIT_BYTES * .85)
               else 'GREEN')
     return {'budget_status': status, 'limit_bytes': LIMIT_BYTES,
-            'pages_bytes': size, 'usage_pct': size / LIMIT_BYTES * 100,
+            'pages_bytes': size, 'usage_pct': round(size / LIMIT_BYTES * 100, 6),
             'remaining_bytes': max(0, LIMIT_BYTES - size),
-            'projected_180_sessions_bytes': projection, 'sessions_to_limit': runway,
+            'projected_180_sessions_bytes': math.ceil(projection) if projection is not None else None,
+            'sessions_to_limit': round(runway, 6) if runway is not None else None,
             'growth_bytes_per_session': growth,
             'forecast_confidence': 'INSUFFICIENT_HISTORY' if growth is None else 'MEASURED_TREND',
             'unit': 'bytes; MiB=1048576 bytes; limit=decimal 1 GB'}
