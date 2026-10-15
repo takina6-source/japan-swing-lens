@@ -108,10 +108,14 @@ def worker(args):
         db = Database(db_path)
         if args.mode == 'legacy':
             for kind,seed in [('validation',seed_validation),('experimental',seed_experimental),('research',seed_research)]:
-                value = json.loads((source/kind/'state.json').read_bytes())
-                response = Mock(status_code=200)
-                response.json.return_value = value
-                with patch('requests.get',return_value=response):
+                def legacy_get(url, **kwargs):
+                    path = source/url.removeprefix('https://fixed/')
+                    response = Mock(status_code=200 if path.is_file() else 404)
+                    response.content = path.read_bytes() if path.is_file() else None
+                    response.json.side_effect = lambda: json.loads(response.content)
+                    response.raise_for_status.side_effect = None if path.is_file() else __import__('requests').HTTPError('404')
+                    return response
+                with patch('requests.get',side_effect=legacy_get):
                     if not seed(db,'https://fixed/'+kind):
                         raise RuntimeError('baseline seed failed')
         else:

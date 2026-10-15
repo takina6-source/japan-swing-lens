@@ -1,8 +1,14 @@
 {
-  "attempt": 2,
-  "purpose": "Two fixed-input full pipeline continuations; no publication, Release write, or cache save",
-  "source_run_id": 38639189826,
-  "source_artifact_id": 11931417857,
+  "source_run_id": 38806096548,
+  "source_artifact_id": 12008701930,
   "baseline_commit": "521da73f4c13d1210750ded96c18c85b022528c9",
-  "fixed_cache_key": "swing-data-Linux-38639189826"
+  "fixed_cache_key": "swing-data-Linux-38806096548",
+  "artifact_tar_sha256": "1c486203f7e93bab958728bb023249d3782ccd6bbf4e0011c5b850461d7a4903",
+  "state_sha256": {
+    "validation": "832eef5c5e5109d936f2f60055e3b145593ba565d6056d0a20617288b023f113",
+    "experimental": "c06fe262adcb52bb43c8839c477ca182d279b7d03ec396554d5076c1229a6412",
+    "research": "2cb5f85866f975bee2624110678c9e7f0f5ee6b21436491ec7f3dc85d2c32a15"
+  },
+  "attempt": 3,
+  "purpose": "Two fixed-input full pipeline continuations; no publication, Release write, or cache save"
 }

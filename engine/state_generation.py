@@ -102,7 +102,7 @@ def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_dat
              previous: dict | None = None, history: list | None = None,
              sessions: list[str] | None = None):
     """Build and verify a complete replacement tree. Never touch the source tree."""
-    if target.exists() or source.resolve() == target.resolve():
+    if target.exists() or source.resolve() == target.resolve() or source.resolve() in target.resolve().parents:
         raise StateError('staging target must be new and separate from the source')
     date.fromisoformat(market_date)
     if previous:

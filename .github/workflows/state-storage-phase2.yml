@@ -46,15 +46,15 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: data
-          key: swing-data-Linux-38639189826
+          key: swing-data-Linux-38806096548
           fail-on-cache-miss: true
       - name: Read frozen public artifact
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
           repository: takina6-source/japan-swing-lens
-          run-id: 38639189826
-          artifact-ids: 11931417857
+          run-id: 38806096548
+          artifact-ids: 12008701930
           path: ${{ runner.temp }}/frozen-artifact
           merge-multiple: true
       - name: Verify the pinned source and unpack it
@@ -65,7 +65,7 @@ jobs:
           python - <<'PY'
           import hashlib,json,os,tarfile
           from pathlib import Path
-          r=json.loads(Path('docs/state-storage/BACKUP_REQUEST.json').read_text())
+          r=json.loads(Path('docs/state-storage/PHASE2_DRY_RUN_REQUEST.json').read_text())
           tar=Path(os.environ['TARBALL'])
           assert hashlib.sha256(tar.read_bytes()).hexdigest()==r['artifact_tar_sha256']
           with tarfile.open(tar) as t: t.extractall(os.environ['PAGES_DIR'],filter='data')
