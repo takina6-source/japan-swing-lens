@@ -175,3 +175,11 @@ def test_offline_workflows_have_no_production_deployment():
     trigger = backup.get('on', backup.get(True))
     assert trigger['push']['branches'] == ['codex/state-storage-phase1']
     assert trigger['push']['paths'] == ['docs/state-storage/BACKUP_REQUEST.json']
+
+
+def test_empty_compressed_seed_cannot_initialize_a_cold_cache(monkeypatch):
+    raw = b'{"signals":[],"history":[],"controls":[],"control_history":[]}'
+    remote(monkeypatch, {'state.json.gz': response(compress(raw)),
+                         'state.manifest.json': response(json.dumps(describe(raw, 'validation')).encode())})
+    with pytest.raises(StateError, match='empty'):
+        load_remote('https://test', 'validation')

@@ -1,0 +1,7 @@
+Base checkout: be9d1e565b90bc98b06019f78e5eb44a3a0a80ba
+legacy baseline vs gzip proposed: PASS
+29/29 JSON artifact hashes: equal
+No numeric rounding; only generated_at and created_at are excluded for DB/export comparison.
+Byte preservation uses a separate raw SHA-256 check excluding no fields.
+H1-H4 frozen definition hashes, LIVE_FORWARD and Formal Holdout counts: equal
+Current-version 5/5 x Momentum95+ IDs, T+5 and Matched Control excess: equal

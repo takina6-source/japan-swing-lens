@@ -11,6 +11,7 @@ import io
 import json
 import math
 import warnings
+import zlib
 from collections import Counter
 from datetime import date
 
@@ -179,7 +180,7 @@ def describe(raw, kind):
 def decode(raw, kind, *, compressed=False, expected=None):
     try:
         plain = gzip.decompress(raw) if compressed else raw
-    except (OSError, EOFError) as exc:
+    except (OSError, EOFError, zlib.error) as exc:
         raise StateError('invalid gzip; no legacy fallback permitted') from exc
     actual = describe(plain, kind)
     if expected is not None and actual != expected:
@@ -208,6 +209,8 @@ def load_remote(base_url, kind):
         if expected is None:
             raise StateError('compressed seed requires state.manifest.json')
         value = decode(packed, kind, compressed=True, expected=expected)
+        if not value['hypotheses' if kind == 'research' else 'signals']:
+            raise StateError('configured seed is empty; initialization requires no seed URL')
         legacy = _get(base + '/state.json', optional=True)
         if legacy is not None:
             if describe(legacy, kind) != expected:
