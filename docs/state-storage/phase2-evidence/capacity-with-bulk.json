@@ -100,5 +100,22 @@
   "one_interval_growth_bytes": 4298977,
   "conditional_sessions_to_limit": 194.7630071061092,
   "conditional_after_69_sessions_bytes": 459347725,
-  "confidence": "LOW: only one market-session interval; not a measured 7/30-session trend"
+  "confidence": "LOW: only one market-session interval; not a measured 7/30-session trend",
+  "sensitivity_69_sessions": [
+    {
+      "growth_multiplier": 1,
+      "final_bytes": 459347725,
+      "below_1gb": true
+    },
+    {
+      "growth_multiplier": 2,
+      "final_bytes": 755977138,
+      "below_1gb": true
+    },
+    {
+      "growth_multiplier": 3,
+      "final_bytes": 1052606551,
+      "below_1gb": false
+    }
+  ]
 }

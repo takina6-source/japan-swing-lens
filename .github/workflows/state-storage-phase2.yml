@@ -77,7 +77,9 @@ jobs:
       - name: Capture provider inputs once (no publication)
         run: python scripts/state_dry_run.py capture --db data/momentum.db --output "${{ runner.temp }}/fixed-input.json.gz" > "${{ runner.temp }}/capture-summary.json"
       - name: Replay two full updates with exactly the same captured inputs
-        run: python scripts/state_dry_run.py run --db data/momentum.db --inputs "${{ runner.temp }}/fixed-input.json.gz" --pages "${{ runner.temp }}/frozen-pages" --baseline baseline --work "${{ runner.temp }}/replays" --report "${{ runner.temp }}/continuation-report.json" > "${{ runner.temp }}/continuation.log" 2>&1
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: python scripts/state_dry_run.py run --db data/momentum.db --inputs "${{ runner.temp }}/fixed-input.json.gz" --pages "${{ runner.temp }}/frozen-pages" --baseline baseline --work "${{ runner.temp }}/replays" --report "${{ runner.temp }}/continuation-report.json" 2>&1 | tee "${{ runner.temp }}/continuation.log"
       - name: Retain private verification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -89,5 +91,6 @@ jobs:
             ${{ runner.temp }}/fixed-input.json.sha256
             ${{ runner.temp }}/continuation-report.json
             ${{ runner.temp }}/continuation.log
+            ${{ runner.temp }}/replays/*.json
           if-no-files-found: error
           retention-days: 30

@@ -114,6 +114,7 @@ def worker(args):
                              market_date=json.loads((source/'data/snapshot.json').read_bytes())['as_of'])
         source = args.work/'initial'
     for iteration in (1,2):
+        print(f'{args.mode}: starting continuation {iteration}', flush=True)
         db = Database(db_path)
         if args.mode == 'legacy':
             for kind,seed in [('validation',seed_validation),('experimental',seed_experimental),('research',seed_research)]:
@@ -194,6 +195,7 @@ def worker(args):
             reports[-1]['physical']=physical
         else:
             source=output
+        print(f'{args.mode}: completed continuation {iteration}', flush=True)
     args.report.write_text(json.dumps({'mode':args.mode,'cycles':reports},ensure_ascii=False,indent=2))
     print('Two fixed-input full pipeline continuations completed:',args.mode)
 
@@ -213,14 +215,16 @@ def run(args):
         results[mode]=json.loads(report.read_text())
         # Free the ~GB of working outputs before running the second mode on a hosted runner.
         shutil.rmtree(args.work/mode)
-    for before,after in zip(results['legacy']['cycles'],results['gzip']['cycles']):
-        if before['artifacts'] != after['artifacts'] or before['segment'] != after['segment']:
-            raise RuntimeError('same-input research or display output mismatch; production cutover must stop')
-    args.report.write_text(json.dumps({'passed':True,'cycles':2,
+    matched = (all(len(result['cycles']) == 2 for result in results.values())
+               and all(before['artifacts'] == after['artifacts'] and before['segment'] == after['segment']
+                       for before,after in zip(results['legacy']['cycles'],results['gzip']['cycles'])))
+    args.report.write_text(json.dumps({'passed':matched,'cycles':2,
                            'artifact_counts':[len(c['artifacts']) for c in results['gzip']['cycles']],
                            'input_archive_sha256':hashlib.sha256(args.inputs.read_bytes()).hexdigest(),
                            'excluded_volatile':['created_at','generated_at','research operational telemetry'],
                            'results':results},ensure_ascii=False,indent=2))
+    if not matched:
+        raise RuntimeError('same-input research or display output mismatch; comparison evidence retained; production cutover must stop')
     print('Baseline vs compressed: both full pipeline continuations match without numeric rounding')
 
 
