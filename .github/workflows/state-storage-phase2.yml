@@ -1,0 +1,90 @@
+name: State storage Phase 2 private verification
+
+on:
+  pull_request:
+  push:
+    branches: [codex/state-storage-phase2]
+    paths: [docs/state-storage/PHASE2_DRY_RUN_REQUEST.json]
+
+permissions: {}
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e '.[jquants,test]'
+      - run: python -m pytest -q
+      - run: python scripts/fixed_input_regression.py
+
+  private-continuation:
+    if: github.event_name == 'push'
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e '.[jquants,test]'
+      - uses: actions/checkout@v4
+        with:
+          ref: 521da73f4c13d1210750ded96c18c85b022528c9
+          path: baseline
+      - name: Restore fixed production cache without saving it
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: swing-data-Linux-38639189826
+          fail-on-cache-miss: true
+      - name: Read frozen public artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: takina6-source/japan-swing-lens
+          run-id: 38639189826
+          artifact-ids: 11931417857
+          path: ${{ runner.temp }}/frozen-artifact
+          merge-multiple: true
+      - name: Verify the pinned source and unpack it
+        env:
+          TARBALL: ${{ runner.temp }}/frozen-artifact/artifact.tar
+          PAGES_DIR: ${{ runner.temp }}/frozen-pages
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,tarfile
+          from pathlib import Path
+          r=json.loads(Path('docs/state-storage/BACKUP_REQUEST.json').read_text())
+          tar=Path(os.environ['TARBALL'])
+          assert hashlib.sha256(tar.read_bytes()).hexdigest()==r['artifact_tar_sha256']
+          with tarfile.open(tar) as t: t.extractall(os.environ['PAGES_DIR'],filter='data')
+          for kind,sha in r['state_sha256'].items():
+              assert hashlib.sha256((Path(os.environ['PAGES_DIR'])/kind/'state.json').read_bytes()).hexdigest()==sha
+          print('Pinned original artifact and three State SHA values verified')
+          PY
+      - name: Capture provider inputs once (no publication)
+        run: python scripts/state_dry_run.py capture --db data/momentum.db --output "${{ runner.temp }}/fixed-input.json.gz" > "${{ runner.temp }}/capture-summary.json"
+      - name: Replay two full updates with exactly the same captured inputs
+        run: python scripts/state_dry_run.py run --db data/momentum.db --inputs "${{ runner.temp }}/fixed-input.json.gz" --pages "${{ runner.temp }}/frozen-pages" --baseline baseline --work "${{ runner.temp }}/replays" --report "${{ runner.temp }}/continuation-report.json" > "${{ runner.temp }}/continuation.log" 2>&1
+      - name: Retain private verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-continuation-evidence-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/capture-summary.json
+            ${{ runner.temp }}/continuation-report.json
+            ${{ runner.temp }}/continuation.log
+          if-no-files-found: error
+          retention-days: 30

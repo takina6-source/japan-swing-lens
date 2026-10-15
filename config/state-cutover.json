@@ -1,0 +1,9 @@
+{
+  "format": "jsl-cutover-approval-v1",
+  "approved": false,
+  "source_run_id": null,
+  "backup_release": null,
+  "archive_sha256": null,
+  "local_sha256_confirmed": null,
+  "approved_for_merge_and_deploy": false
+}

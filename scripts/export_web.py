@@ -144,45 +144,62 @@ def chart_rows(frame: pd.DataFrame) -> list[dict]:
     return rows
 
 
-def export(refresh: bool, scope: str):
+def export(refresh: bool, scope: str, *, db_path: Path | None = None,
+           dashboard: Path | None = None, captured_input: dict | None = None):
     workflow_started = time.perf_counter()
     cfg = load_config()
-    db = Database(ROOT / "data" / "momentum.db")
-    seed_validation(db, os.getenv("VALIDATION_SEED_URL"))
-    seed_experimental(db, os.getenv("EXPERIMENTAL_SEED_URL"))
-    seed_research(db, os.getenv("RESEARCH_SEED_URL"))
-    service = DataService(db)
-    meta = {row["code"]: row for row in db.load_securities()}
-    if refresh:
-        names, raw, fundamentals, sources, errors, _ = service.scan(
-            "無料実用", scope=scope, edinet_key=os.getenv("EDINET_API_KEY") or None)
-        meta = {row["code"]: row for row in db.load_securities()}
+    dashboard = dashboard or ROOT / "public" / "dashboard"
+    out = dashboard / "data"
+    db = Database(db_path or ROOT / "data" / "momentum.db")
+    if captured_input is not None:
+        names, raw = captured_input['names'], captured_input['frames']
+        fundamentals, sources = captured_input['fundamentals'], captured_input['sources']
+        meta, benchmark = captured_input['meta'], captured_input['benchmark']
+        action_map, errors = captured_input['actions'], []
+        benchmark_source = captured_input['benchmark_source']
     else:
-        names, raw, fundamentals, sources, meta = cached_scan(db, scope)
-        errors = []
-    if not raw:
-        raise RuntimeError("公開用に分析できる保存株価がありません")
-    yahoo = YahooProvider()
-    split_candidates = action_candidates(db, raw)
-    action_map = {}
-    if split_candidates:
-        # Incremental 10d downloads can leave pre-split rows on the old basis.
-        fresh, refresh_errors = yahoo.histories(sorted(split_candidates), period="2y")
-        errors.extend(refresh_errors)
-        if fresh:
-            db.save_prices_bulk(fresh, yahoo.name)
-            raw.update(db.load_prices_many(list(fresh), yahoo.name))
-        for code in sorted(split_candidates):
-            try:
-                action_map[code] = yahoo.stock_splits(code)
-            except Exception as exc:
-                errors.append(f"{code}: 分割情報取得失敗 {exc}")
-    try:
-        benchmark = YahooProvider().history("TOPIX")
-        benchmark_source = "1306 TOPIX連動ETF（Yahoo Finance）"
-    except Exception:
-        benchmark = make_demo_history("TOPIX")
-        benchmark_source = "代替benchmark"
+        authority_path = os.getenv("STATE_AUTHORITY_FILE")
+        if authority_path:
+            from engine.state_generation import restore_generation
+            restore_generation(db, os.environ["STATE_ROOT_URL"],
+                               json.loads(Path(authority_path).read_bytes()),
+                               Path(os.environ["STATE_HISTORY_FILE"]))
+        else:
+            seed_validation(db, os.getenv("VALIDATION_SEED_URL"))
+            seed_experimental(db, os.getenv("EXPERIMENTAL_SEED_URL"))
+            seed_research(db, os.getenv("RESEARCH_SEED_URL"))
+        service = DataService(db)
+        meta = {row["code"]: row for row in db.load_securities()}
+        if refresh:
+            names, raw, fundamentals, sources, errors, _ = service.scan(
+                "無料実用", scope=scope, edinet_key=os.getenv("EDINET_API_KEY") or None)
+            meta = {row["code"]: row for row in db.load_securities()}
+        else:
+            names, raw, fundamentals, sources, meta = cached_scan(db, scope)
+            errors = []
+        if not raw:
+            raise RuntimeError("公開用に分析できる保存株価がありません")
+        yahoo = YahooProvider()
+        split_candidates = action_candidates(db, raw)
+        action_map = {}
+        if split_candidates:
+            # Incremental 10d downloads can leave pre-split rows on the old basis.
+            fresh, refresh_errors = yahoo.histories(sorted(split_candidates), period="2y")
+            errors.extend(refresh_errors)
+            if fresh:
+                db.save_prices_bulk(fresh, yahoo.name)
+                raw.update(db.load_prices_many(list(fresh), yahoo.name))
+            for code in sorted(split_candidates):
+                try:
+                    action_map[code] = yahoo.stock_splits(code)
+                except Exception as exc:
+                    errors.append(f"{code}: 分割情報取得失敗 {exc}")
+        try:
+            benchmark = YahooProvider().history("TOPIX")
+            benchmark_source = "1306 TOPIX連動ETF（Yahoo Finance）"
+        except Exception:
+            benchmark = make_demo_history("TOPIX")
+            benchmark_source = "代替benchmark"
     prepared = prepare_universe(raw, benchmark)
     analyses = rank([
         analyze(code, names[code], frame, fundamentals[code], sources[code], benchmark, cfg,
@@ -200,8 +217,8 @@ def export(refresh: bool, scope: str):
     research = run_research(db, analyses, prepared, benchmark, meta, cfg,
                             workflow_started=workflow_started,
                             corporate_actions=action_map)
-    OUT.mkdir(parents=True, exist_ok=True)
-    detail_dir = OUT / "details"
+    out.mkdir(parents=True, exist_ok=True)
+    detail_dir = out / "details"
     detail_dir.mkdir(exist_ok=True)
     candidates = []
     annual_diagnostics = {row["code"]: row for row in
@@ -287,7 +304,7 @@ def export(refresh: bool, scope: str):
         "candidates": candidates,
     }
     quarterly_diagnostics = db.load_quarterly_diagnostics(list(prepared))
-    (OUT / "quarterly_diagnostics.json").write_text(
+    (out / "quarterly_diagnostics.json").write_text(
         json.dumps(clean(quarterly_diagnostics), ensure_ascii=False, separators=(",", ":"),
                    allow_nan=False), encoding="utf-8")
     csv_rows = []
@@ -297,7 +314,7 @@ def export(refresh: bool, scope: str):
         flat["reason_codes"] = "|".join(row.get("reason_codes", []))
         flat["attempted_sources"] = "|".join(row.get("attempted_sources", []))
         csv_rows.append(flat)
-    pd.DataFrame(csv_rows).to_csv(OUT / "quarterly_diagnostics.csv", index=False,
+    pd.DataFrame(csv_rows).to_csv(out / "quarterly_diagnostics.csv", index=False,
                                   encoding="utf-8-sig")
     coverage_distribution = {str(level): 0 for level in (0, 25, 50, 75, 100)}
     source_distribution: dict[str, int] = {}
@@ -320,7 +337,7 @@ def export(refresh: bool, scope: str):
         "diagnostics_files": ["data/quarterly_diagnostics.json",
                               "data/quarterly_diagnostics.csv"],
     }
-    validation = export_validation(db, ROOT / "public" / "dashboard" / "validation", cfg,
+    validation = export_validation(db, dashboard / "validation", cfg,
                                    corporate_diagnostics)
     diagnostic_codes = {row["code"] for row in db.load_fundamental_diagnostics()}
     scope_codes = {row["code"] for row in select_scope(db.load_securities(), scope)}
@@ -329,7 +346,7 @@ def export(refresh: bool, scope: str):
     universe = universe_diagnostics(diagnostic_codes, scope_codes, raw_codes,
                                     prepared_codes, ranked_codes)
     validation["universe"] = universe
-    (ROOT / "public" / "dashboard" / "validation" / "index.json").write_text(
+    (dashboard / "validation" / "index.json").write_text(
         json.dumps(validation, ensure_ascii=False, separators=(",", ":"), allow_nan=False),
         encoding="utf-8")
     snapshot["validation"] = validation
@@ -345,14 +362,17 @@ def export(refresh: bool, scope: str):
         },
     }
     experiment = export_experimental(
-        db, ROOT / "public" / "dashboard" / "experimental", cfg)
+        db, dashboard / "experimental", cfg)
     snapshot["experimental_validation"] = experiment
     snapshot["experimental_version"] = cfg["experimental_version"]
     snapshot["experiment_start_date"] = cfg["experiment_start_date"]
     research_index = export_research(
-        db, ROOT / "public" / "dashboard" / "research", cfg, research)
-    (OUT / "snapshot.json").write_text(
+        db, dashboard / "research", cfg, research)
+    (out / "snapshot.json").write_text(
         json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
+    # Actual provider trading dates, used only for storage observation windows.
+    session_dates = sorted({str(day.date()) for frame in raw.values() for day in frame.index})
+    (out / "market-sessions.json").write_text(json.dumps(session_dates), encoding="utf-8")
     phase2a_input = os.getenv("PHASE2A_INPUT_DIR")
     if phase2a_input:
         selected = select_scope(db.load_securities(), scope)
@@ -383,7 +403,7 @@ def export(refresh: bool, scope: str):
         })
         try:
             write_core_input_bundle(
-                Path(phase2a_input), snapshot_path=OUT / "snapshot.json",
+                Path(phase2a_input), snapshot_path=out / "snapshot.json",
                 details_dir=detail_dir, scope_members=scope_members,
                 market_dates=market_dates,
                 config_sha256=hashlib.sha256(

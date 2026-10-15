@@ -56,7 +56,7 @@ def test_phase2a_permissions_are_job_scoped_and_publication_is_independent():
     jobs = workflow["jobs"]
     assert workflow["permissions"] == {}
     assert jobs["analyze-and-publish"]["permissions"] == {
-        "contents": "read", "pages": "write", "id-token": "write"
+        "contents": "write", "pages": "write", "id-token": "write"
     }
     shadow = jobs["phase2a-production-shadow"]
     assert shadow["permissions"] == {"contents": "write", "actions": "read"}

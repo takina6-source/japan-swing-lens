@@ -24,7 +24,8 @@ def create_backup(pages: Path, archive: Path, *, generation: str, market_date: s
         staged = Path(directory) / 'backup.zip'
         with zipfile.ZipFile(staged, 'w', compression=zipfile.ZIP_STORED) as bundle:
             for kind in KINDS:
-                raw = (pages / kind / 'state.json').read_bytes()
+                from .state_generation import read_plain
+                raw = read_plain(pages, kind)
                 info = describe(raw, kind)
                 packed = compress(raw)
                 decode(packed, kind, compressed=True, expected=info)

@@ -1,0 +1,7 @@
+{
+  "purpose": "Two fixed-input full pipeline continuations; no publication, Release write, or cache save",
+  "source_run_id": 38639189826,
+  "source_artifact_id": 11931417857,
+  "baseline_commit": "521da73f4c13d1210750ded96c18c85b022528c9",
+  "fixed_cache_key": "swing-data-Linux-38639189826"
+}
