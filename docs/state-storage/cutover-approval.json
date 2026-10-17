@@ -1,0 +1,12 @@
+{
+  "approved_date_jst": "2026-10-17",
+  "user_approval": "切り替えていいよ",
+  "user_backup_verification": "User screenshot showed shasum -a 256 -c jsl-state-backup-run-38806096548.zip.sha256: OK in /Users/inadatakumi/Desktop/JSL",
+  "source_run_id": 38806096548,
+  "source_commit": "be9d1e565b90bc98b06019f78e5eb44a3a0a80ba",
+  "backup_archive_sha256": "218f68d363f0ef214b59d2d73d3005ff97554d941c589542f310cb54e67c41a3",
+  "full_private_validation_run": 39024659114,
+  "merge_plan": "PR #4 contains all Phase 1 commits; retarget #4 to main and merge once to trigger one production update.",
+  "approved_scope": "Merge Phase 1 and Phase 2, deploy compressed State, verify live continuity and display files.",
+  "production_verification": "pending"
+}
