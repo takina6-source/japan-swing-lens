@@ -238,7 +238,7 @@ def worker(args):
         print(f'{args.mode}: completed continuation {iteration}', flush=True)
         args.report.write_text(json.dumps({'mode':args.mode,'cycles':reports},ensure_ascii=False,indent=2))
     args.report.write_text(json.dumps({'mode':args.mode,'cycles':reports},ensure_ascii=False,indent=2))
-    print('Two fixed-input full pipeline continuations completed:',args.mode)
+    print(f'{len(reports)} fixed-input full pipeline continuation(s) completed: {args.mode}',flush=True)
 
 
 def run(args):

@@ -129,6 +129,8 @@ jobs:
         run: |
           mkdir -p "${{ runner.temp }}/continuity-release"
           python scripts/finalize_state.py --source public/dashboard --target public/staged-dashboard --authority "${{ runner.temp }}/state-authority.json" --history "${{ runner.temp }}/storage-history.json" --run-id "${{ github.run_id }}" --commit "${{ github.sha }}" --ledger-output "${{ runner.temp }}/continuity-release/generation.json"
+          cp public/staged-dashboard/storage/history.json "${{ runner.temp }}/continuity-release/storage-history.json"
+          cp public/staged-dashboard/research/storage_metrics.json "${{ runner.temp }}/continuity-release/storage-metrics.json"
           python scripts/state_backup.py create --pages public/staged-dashboard --archive "${{ runner.temp }}/continuity-release/state-backup.zip" --generation "github-actions-run-${{ github.run_id }}" --market-date "$(python -c "import json; print(json.load(open('public/staged-dashboard/data/snapshot.json'))['as_of'])")" > "${{ runner.temp }}/continuity-release/backup-manifest.json"
       - name: Create immutable continuity Release before deployment
         env:
@@ -143,6 +145,8 @@ jobs:
           sha256sum -c state-backup.zip.sha256
           cd "$GITHUB_WORKSPACE"
           cmp "${{ runner.temp }}/continuity-release/generation.json" "${{ runner.temp }}/independent-redownload/generation.json"
+          cmp "${{ runner.temp }}/continuity-release/storage-history.json" "${{ runner.temp }}/independent-redownload/storage-history.json"
+          cmp "${{ runner.temp }}/continuity-release/storage-metrics.json" "${{ runner.temp }}/independent-redownload/storage-metrics.json"
           python scripts/state_backup.py restore --archive "${{ runner.temp }}/independent-redownload/state-backup.zip" --target "${{ runner.temp }}/independent-restored"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
