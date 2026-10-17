@@ -64,10 +64,22 @@ def test_independent_authority_rejects_cold_cache_rollback_and_missing_stream(tm
     assert cold.validation_rows() == ([],[])
 
 
-def test_cutover_requires_both_explicit_approval_and_matching_local_archive(tmp_path,monkeypatch):
+@pytest.mark.parametrize('invalid', [
+    {'approved': False},
+    {'approved_for_merge_and_deploy': False},
+    {'local_sha256_confirmed': 'b' * 64},
+    {'archive_sha256': None},
+])
+def test_cutover_requires_both_explicit_approval_and_matching_local_archive(tmp_path,monkeypatch,invalid):
     from scripts.state_release import select
     monkeypatch.setattr('scripts.state_release.gh',lambda *args:'[[]]')
-    config = Path(__file__).parents[1]/'config/state-cutover.json'
+    # Authorization is operational configuration; rejection fixtures must also
+    # work after an actual user-approved cutover.
+    config = tmp_path/'cutover.json'
+    approval = {'format': 'jsl-cutover-approval-v1', 'approved': True,
+                'approved_for_merge_and_deploy': True, 'archive_sha256': 'a' * 64,
+                'local_sha256_confirmed': 'a' * 64}
+    config.write_text(json.dumps({**approval, **invalid}))
     with pytest.raises(StateError,match='cutover is locked'):
         select(tmp_path/'authority.json',config)
     assert not (tmp_path/'authority.json').exists()
