@@ -169,7 +169,8 @@ def finalize(source: Path, target: Path, *, run_id: int, commit: str, market_dat
                   'producer_commit': commit, 'market_date': market_date,
                   'parent_sha256': sha256(json_bytes(previous)) if previous else None,
                   'bulk_downloads_sha256': bulk_manifest_sha,
-                  'display_files': [name for name in ('briefing/latest.json','briefing/what-changed.json','committee/index.json')
+                  'display_files': [name for name in ('briefing/latest.json','briefing/what-changed.json','committee/index.json',
+                                                     'validation/signal_history.json','experimental/history.json')
                                     if (source/name).is_file()],
                   'streams': {}, 'compressed_sha256': {}, 'storage_history_sha256': '0' * 64}
         for kind in KINDS:

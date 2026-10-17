@@ -10,6 +10,7 @@ NAMES = {
     'validation': ('signals', 'signal_history', 'performance', 'controls', 'control_performance'),
     'experimental': ('signals', 'history', 'performance', 'controls', 'control_performance'),
 }
+RAW_CONTRACTS = {'validation/signal_history.json', 'experimental/history.json'}
 
 
 def stage_downloads(root: Path):
@@ -20,6 +21,10 @@ def stage_downloads(root: Path):
                 name = f'{kind}/{stem}.{extension}'
                 path = root/name
                 packed_path = root/(name+'.gz')
+                if name in RAW_CONTRACTS:
+                    if packed_path.exists() and not path.exists():
+                        raise StateError('raw Committee history contract missing; stage original exports')
+                    continue
                 if path.exists():
                     raw = path.read_bytes()
                     packed = compress(raw)
