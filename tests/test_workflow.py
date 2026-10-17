@@ -143,7 +143,8 @@ def test_phase2_dry_run_is_separate_read_only_and_never_saves_production_cache()
             action=step.get('uses','')
             assert not any(x in action for x in ('deploy-pages','configure-pages','upload-pages-artifact','cache/save'))
             assert action!='actions/cache@v4'
-            assert 'gh release' not in step.get('run','')
+            import re
+            assert set(re.findall(r'gh release ([a-z-]+)',step.get('run',''))) <= {'download'}
     private=workflow['jobs']['private-continuation']
     assert private['if']=="github.event_name == 'push'"
     cache=next(s for s in private['steps'] if s.get('uses','').startswith('actions/cache/restore'))

@@ -49,15 +49,24 @@ jobs:
           path: data
           key: swing-data-Linux-38806096548
           fail-on-cache-miss: true
-      - name: Read frozen public artifact
-        uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ github.token }}
-          repository: takina6-source/japan-swing-lens
-          run-id: 38806096548
-          artifact-ids: 12008701930
-          path: ${{ runner.temp }}/frozen-artifact
-          merge-multiple: true
+      - name: Read the public frozen Pages fixture from its independent Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIXTURE_DIR: ${{ runner.temp }}/frozen-artifact
+        run: |
+          mkdir -p "$FIXTURE_DIR"
+          gh release download jsl-state-verification-fixture-run-38806096548 --repo takina6-source/japan-swing-lens --pattern frozen-pages-run38806096548.zip --dir "$FIXTURE_DIR"
+          python - <<'PY'
+          import hashlib,json,os,zipfile
+          from pathlib import Path
+          request=json.loads(Path('docs/state-storage/PHASE2_DRY_RUN_REQUEST.json').read_bytes())
+          root=Path(os.environ['FIXTURE_DIR'])
+          archive=root/'frozen-pages-run38806096548.zip'
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()==request['artifact_zip_sha256']
+          with zipfile.ZipFile(archive) as bundle:
+              assert bundle.namelist()==['artifact.tar']
+              (root/'artifact.tar').write_bytes(bundle.read('artifact.tar'))
+          PY
       - name: Verify the pinned source and unpack it
         env:
           TARBALL: ${{ runner.temp }}/frozen-artifact/artifact.tar
