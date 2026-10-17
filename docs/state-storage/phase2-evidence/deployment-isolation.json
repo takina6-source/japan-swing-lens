@@ -1,11 +1,11 @@
 {
-  "checked_at": "2026-10-16 JST",
+  "checked_at": "2026-10-17T14:23:09.320736+00:00",
   "latest_production_commit": "be9d1e565b90bc98b06019f78e5eb44a3a0a80ba",
   "latest_production_workflow_run": 38806096548,
   "latest_production_workflow_number": 79,
   "observed_deployment_time_jst": "2026-10-16T05:58:00+09:00",
   "deployment_history_url": "https://github.com/takina6-source/japan-swing-lens/deployments",
-  "private_workflow_sha256": "7df703b9398448a86d5c329cf041ec8b55351a284e1954adc7da6f36b29aba20",
+  "private_workflow_sha256": "3e3cc90659449634166d97151e8722b33f35d68f5092bfffec858acb6e30cc34",
   "private_permissions": {
     "contents": "read",
     "actions": "read"
@@ -21,5 +21,14 @@
     "local_sha256_confirmed": null,
     "approved_for_merge_and_deploy": false
   },
-  "private_two_cycle_result": "PENDING"
+  "private_two_cycle_result": "PASSED",
+  "private_two_cycle_run_id": 39024659114,
+  "prior_run_timed_out": 38818967541,
+  "private_job_id": 117373339849,
+  "private_job_conclusion": "success",
+  "private_run_deployment_steps_observed": false,
+  "latest_pr_ci_runs": [
+    39027426545,
+    39027426543
+  ]
 }

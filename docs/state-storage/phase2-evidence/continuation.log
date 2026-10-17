@@ -1,0 +1,27 @@
+Disposable replay DB uses memory journal; production/source DB synchronization is unchanged
+legacy: starting continuation 1
+legacy: restoring validation
+legacy: restoring experimental
+legacy: restoring research
+exported 965 stocks as of 2026-10-15; research=4277 events, 316.93s
+legacy: completed continuation 1
+Two fixed-input full pipeline continuations completed: legacy
+Disposable replay DB uses memory journal; production/source DB synchronization is unchanged
+legacy: starting continuation 2
+legacy: restoring validation
+legacy: restoring experimental
+legacy: restoring research
+exported 965 stocks as of 2026-10-15; research=4277 events, 318.93s
+legacy: completed continuation 2
+Two fixed-input full pipeline continuations completed: legacy
+Disposable replay DB uses memory journal; production/source DB synchronization is unchanged
+gzip: starting continuation 1
+exported 965 stocks as of 2026-10-15; research=4277 events, 319.22s
+gzip: completed continuation 1
+Two fixed-input full pipeline continuations completed: gzip
+Disposable replay DB uses memory journal; production/source DB synchronization is unchanged
+gzip: starting continuation 2
+exported 965 stocks as of 2026-10-15; research=4277 events, 317.35s
+gzip: completed continuation 2
+Two fixed-input full pipeline continuations completed: gzip
+Baseline vs compressed: both full pipeline continuations match without numeric rounding

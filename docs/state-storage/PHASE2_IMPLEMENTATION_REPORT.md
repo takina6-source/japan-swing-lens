@@ -1,6 +1,6 @@
 # Phase 2 実装・検証報告（本番切替前）
 
-2026-10-17 JST（元データ市場日2026-10-15）。PR #4（base: Phase 1 PR #3）はDraft。本番容量は未削減。main・Pagesは変更していない。利用者からの最新回答は「ローカル保管・照合は未実施、検証は続行」。本番切替・mainマージの承認は未取得。承認設定は false/null のまま。
+2026-10-17 JST（元データ市場日2026-10-15）。PR #4（base: Phase 1 PR #3）は実装・検証が完了し、レビュー提出可能。本番容量は未削減。main・Pagesは変更していない。利用者からの最新回答は「ローカル保管・照合は未実施、検証は続行」。本番切替・mainマージの承認は未取得。承認設定は false/null のまま。
 
 ## 実装
 
@@ -61,15 +61,18 @@ Stateのみでは全体411,697,937 B（392.63 MiB）。10/14→10/15の同方式
 - `python scripts/fixed_input_regression.py`：11 artifacts passed（同`fixed-input-regression.txt`）。
 - `node tests/js/downloads.test.cjs`：通常保存、元SHA破損、圧縮SHA破損、API非対応の4ケース成功。
 - ローカルブラウザでControls CSVを保存。元CSVと保存CSVのSHAは両方 `7bb7fec0f925778a40807b40945a2f91be1b3f511081991f5272f5407c888b42`。ファイル内容・数値精度を維持。ローカル画面でもPages YELLOW / Research RED、190.22 MiB、履歴不足表示を目視確認。
-- 実データの復旧用旧形式ツリーを生成：923,060,268 B、同じ3 State SHA一致。未公開。詳細 `phase2-evidence/rollback-real.json`。
-- 最終CI：[Run 38820256659](https://github.com/takina6-source/japan-swing-lens/actions/runs/38820256659)と[Run 38820256644](https://github.com/takina6-source/japan-swing-lens/actions/runs/38820256644)が成功。
-- 2回の実入力継続更新の比較：**非公開Actionsで実行中・受入判定は保留**。bulk対応Run [38818967541](https://github.com/takina6-source/japan-swing-lens/actions/runs/38818967541)は60分の実行制限で終了し、成功とは扱わない。同Runの固定入力（gzip SHA `21df0c0a6774b847de42cf66bedb944044c560225b59590185246f1b175cba6f`、965銘柄、実際のCorporate Action候補35件）をそのまま再使用し、4回の全量処理に対応する240分枠で再検証する。開始DB・各回の途中証跡も保持する。[Run39021459870](https://github.com/takina6-source/japan-swing-lens/actions/runs/39021459870)はPages artifactの保存期限切れにより準備段階で停止。手元の元ZIP（同じSHA）を[公開済みPages専用fixture Release](https://github.com/takina6-source/japan-swing-lens/releases/tag/jsl-state-verification-fixture-run-38806096548)へ退避し、再取得元を変更した。ZIP/TAR/3 StateのSHAをすべて固定して再検証する。プロバイダー入力の新規Release添付は自動承認レビューで拒否されたため実施せず、既存Actions artifactだけを利用する。旧/新双方で同じDB・同じ価格/財務/benchmark入力・時計を使い、数値を丸めずCore/研究/3表示adapter/5/5×Momentum95+を比較する。実行完了前に成功扱いしない。
+- 実データの復旧用旧形式ツリーを生成：923,062,257 B、同じ3 State SHA一致。未公開。詳細 `phase2-evidence/rollback-real.json`。
+- 最終実装commit `2c4a6f02f6d072ace2b9e1f7df38881d4e56eae6` のPR CI：[Phase 1 Run39027426545](https://github.com/takina6-source/japan-swing-lens/actions/runs/39027426545)、[Phase 2 Run39027426543](https://github.com/takina6-source/japan-swing-lens/actions/runs/39027426543)が成功。
+- **全量の旧形式・圧縮形式各2回継続更新：成功**。[Run39024659114](https://github.com/takina6-source/japan-swing-lens/actions/runs/39024659114)、commit `a38b91531a661fbb8734fcbf3beb59353b8cae6b`。各回1,967出力の論理値と5/5×Momentum95+の50件の全行・ID・数値が一致した。Core/Validation/Experimental/Research、Morning Brief/What Changed/Committeeを含む。比較から除外するものはcreated_at/generated_atとResearch運用telemetry。数値の丸めによる一致判定はしていない。
+- 入力965銘柄、Corporate Action候補35件、同じ開始DB・価格・財務・benchmark・固定時計を使用。入力gzip SHA `21df0c0a6774b847de42cf66bedb944044c560225b59590185246f1b175cba6f`。1回目のDBと出力Stateを2回目に継承し、各更新を別プロセスで実行。worker PIDは旧2646/2954、新3268/3479。固定した同じ市場日の入力による継続更新検証であり、将来2営業日のデータ取得・成長を実証したものではない。
+- 証跡artifact12101344487をMacへ再取得し、ZIP SHA `8340d26132c89a6c6b350f24b81b4905870850ec1ade7a26d7a896f96656053b` を照合。保存済みreportについても両回の全出力hash辞書と対象行を再比較した。ユーザー向け証跡ZIPの `phase2-evidence/full-continuation-report.json` に全比較値、リポジトリの同 `full-continuation-summary.json` に要約を保持。全reportは上記Actions artifactからも取得できる。
+- 全量比較後の最終実装commitとの差分は日次Releaseへの運用履歴/metricsの追加退避と検証ログの文言のみ。研究計算・State・配信処理の変更はない。最終commitのPR CIも成功。
 
-非公開workflowは`contents:read`/`actions:read`のみ。Pages環境・upload-pages-artifact・deploy-pages・Release作成・production cache保存を持たない。`workflow_dispatch`で本番workflowを実行していない。最終Actions実行記録による非デプロイ確認は完了後に追記する。
+非公開workflowは`contents:read`/`actions:read`のみ。成功した実行のjob/step記録にPages環境・upload-pages-artifact・deploy-pages・Release作成・production cache保存がないことを確認。本番最新Runは引き続き79（38806096548）、mainも`be9d1e565b90bc98b06019f78e5eb44a3a0a80ba`。`config/state-cutover.json`はfalse/null。非公開検証による本番切替はない。
 
 ## 切替前に残る条件
 
-1. 非公開2回継続更新の結果と最終CI・画面確認を完了する。
+1. 実装・全量継続更新・最終CI・画面確認は完了。以下の保存確認・承認・本番切替が残る。
 2. 切替直前に最新公開Runを再確認する。更新されていたら3 Stateのバックアップと利用者の保存確認を更新する。
 3. 利用者がReleaseのZIPと`.sha256`をローカル保管し、Macで以下を実行してOKを確認する。
 
@@ -78,7 +81,7 @@ shasum -a 256 -c jsl-state-backup-run-38806096548.zip.sha256
 ```
 
 4. 利用者の明示的なmainマージ・本番切替承認を受けた後だけ、最新RunとSHAを`config/state-cutover.json`に記録する。PR #3→#4の依存関係を処理する。承認前のマージは日次更新を止めるため禁止。
-5. 同じ確定世代を使って切替し、公開後の3 State復元・市場日・全bulkファイル・画面を確認する。失敗時は新世代Releaseを消さず、同じ最新Stateから復旧する。古いcommit/backupへの単純revertをしない。
+5. 同じ確定世代を使って切替し、公開後の3 State復元・市場日・全bulkファイル・画面を確認する。Service Workerの世代更新後に画面を再読み込みし、新しいCSVリンクとResearch容量表示を確認する。失敗時は新世代Releaseを消さず、同じ最新Stateから復旧する。古いcommit/backupへの単純revertをしない。
 
 本Goal全体は本番削減と日次継続確認まで未完了。長期的なState全面分離は今回行わない。Releasesは独立バックアップと世代基準に利用する。将来はPagesを表示専用にすると容量余裕が増す一方、保持・復元・配信責任が増えるため別の移行判断が必要。
 
@@ -110,6 +113,12 @@ python scripts/state_rollback.py --source /path/to/current-compressed-pages --ar
 
 現在の90営業日の継続を優先し、全面移行・外部サービスの契約・新しい鍵の発行は実施していない。
 
-非公開比較の一時DBだけで `--fast-temp-db` を指定し、元cacheを新しい使い捨てDBへコピーした後、SQLのcommit/rollback境界を維持しつつ同期I/O待ちを省く。旧・新両方に同じ設定を適用し、本番DBや元cacheは開けないガードを設ける。異常終了した一時DBは破棄し、本番のseedには使用しない。通常同期のままの本番コードは変更しない。専用テストでロールバックと元cacheバイト列の不変を確認した。再現用DBのコピーからは研究入力に使わない`fetch_log`だけを除外・VACUUMし、古いHTTP例外文字列を添付しない。研究テーブルと価格・財務・setup情報は維持する。
+## 検証環境と途中実行の扱い
 
-全量比較のRun39022080568は旧形式1回目（965銘柄・4277 Research Event）を完了後、2回目の途中でSIGSEGV終了。同期を変更していないRun39021811270でもSIGSEGVを確認し、原因は未確定。数値不一致と判断する比較段階には到達していない。テスト専用の定期スタック取得を外し、実際の日次処理と同様に1更新1プロセスへ分離して再検証する。前回DBと出力Stateは引き継ぎ、2回目に元cacheをコピーし直さない。小さい全経路fixtureで旧・新各2回を別プロセスで実行し、全出力・Morning Briefの入力hashまで一致を確認した。Validation/Experimentalの生成時刻も固定し、provenance hashの時刻由来の誤差を防ぐ。
+全量比較は元cacheを使い捨てDBへコピーし、旧・新両方に同じ `--fast-temp-db` 設定（SQLのcommit/rollback境界を維持し、同期I/O待ちのみ省略）を適用した。本番DBは通常同期のままで変更しない。元cacheを変更できないパスガードとrollbackテストがある。異常終了した一時DBは破棄し、本番seedに使わない。再現用DBのコピーは研究入力に使わないfetch_logのみ除外・VACUUMし、研究テーブルと価格・財務・setupを維持する。
+
+途中のRun38818967541は60分制限、39021459870は元Pages artifactの期限切れ、39021811270/39022080568はSIGSEGVにより未受入。最後の2件は通常同期でも発生し、原因を断定していない。定期スタック取得を外し、実際の日次更新と同じ1更新1プロセスに分離した最終Runで4処理すべて成功した。旧形式1回だけ完了した途中証跡はユーザー向け証跡ZIPの`partial-legacy-cycle.json`に残すが、成功の根拠にはしない。
+
+期限切れ対策として、元ZIPとSHAが同じ公開Pages専用fixtureを[独立Release](https://github.com/takina6-source/japan-swing-lens/releases/tag/jsl-state-verification-fixture-run-38806096548)に保管した。プロバイダー入力の新規Release添付は自動承認レビューに拒否され実施していない。公開済みPagesのみの保存に限定し、プロバイダー入力は既存Actions artifactから取得した。全量検証の証跡artifactは30日保持（期限2026-11-16）で、再現用DB・固定入力・各回reportを含む。ユーザー向け証跡ZIPにはreportと要約を収録し、DBやプロバイダー入力を新しく公開しない。
+
+日次世代Releaseには3 StateのZIP・世代台帳とともにstorage-history.json/storage-metrics.jsonを退避し、再ダウンロード時に元バイト列と比較する。Pagesの運用履歴破損時も同じ世代の履歴を復元できる。公開容量や研究計算には影響しない。

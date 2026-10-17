@@ -7,9 +7,9 @@
       "after": {
         "budget_status": "YELLOW",
         "limit_bytes": 1000000000,
-        "pages_bytes": 158419335,
-        "usage_pct": 15.841933,
-        "remaining_bytes": 841580665,
+        "pages_bytes": 193648352,
+        "usage_pct": 19.364835,
+        "remaining_bytes": 806351648,
         "projected_180_sessions_bytes": null,
         "sessions_to_limit": null,
         "growth_bytes_per_session": null,
@@ -42,10 +42,10 @@
         "forecast_method": "max(complete 7/30 session slopes), negative growth floored at zero for projection",
         "previous_run_delta_bytes": null
       },
-      "pages_reduction_pct": 82.16077506692613,
-      "bulk_original_bytes": 271815283,
-      "bulk_gzip_bytes": 30226986,
-      "bulk_files": 20,
+      "pages_reduction_pct": 78.19371916157165,
+      "bulk_original_bytes": 233677199,
+      "bulk_gzip_bytes": 27318424,
+      "bulk_files": 18,
       "all_original_bytes_verified": true
     },
     {
@@ -55,9 +55,9 @@
       "after": {
         "budget_status": "YELLOW",
         "limit_bytes": 1000000000,
-        "pages_bytes": 162718312,
-        "usage_pct": 16.271831,
-        "remaining_bytes": 837281688,
+        "pages_bytes": 199458088,
+        "usage_pct": 19.945809,
+        "remaining_bytes": 800541912,
         "projected_180_sessions_bytes": null,
         "sessions_to_limit": null,
         "growth_bytes_per_session": null,
@@ -90,32 +90,16 @@
         "forecast_method": "max(complete 7/30 session slopes), negative growth floored at zero for projection",
         "previous_run_delta_bytes": null
       },
-      "pages_reduction_pct": 82.37181440380034,
-      "bulk_original_bytes": 280317705,
-      "bulk_gzip_bytes": 31327842,
-      "bulk_files": 20,
+      "pages_reduction_pct": 78.39158880945666,
+      "bulk_original_bytes": 240521736,
+      "bulk_gzip_bytes": 28272154,
+      "bulk_files": 18,
       "all_original_bytes_verified": true
     }
   ],
-  "one_interval_growth_bytes": 4298977,
-  "conditional_sessions_to_limit": 194.7630071061092,
-  "conditional_after_69_sessions_bytes": 459347725,
+  "one_interval_growth_bytes": 5809736,
+  "conditional_sessions_to_limit": 137.7931651283294,
+  "conditional_after_69_sessions_bytes": 600329872,
   "confidence": "LOW: only one market-session interval; not a measured 7/30-session trend",
-  "sensitivity_69_sessions": [
-    {
-      "growth_multiplier": 1,
-      "final_bytes": 459347725,
-      "below_1gb": true
-    },
-    {
-      "growth_multiplier": 2,
-      "final_bytes": 755977138,
-      "below_1gb": true
-    },
-    {
-      "growth_multiplier": 3,
-      "final_bytes": 1052606551,
-      "below_1gb": false
-    }
-  ]
+  "superseded_by": "capacity-final.json (final static assets and raw Committee history contracts)"
 }
