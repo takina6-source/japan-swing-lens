@@ -1,6 +1,6 @@
 # Phase 2 実装・検証報告（本番切替前）
 
-2026-10-16 JST。PR #4（base: Phase 1 PR #3）はDraft。本番容量は未削減。main・Pagesは変更していない。利用者からの最新回答は「ローカル保管・照合は未実施、検証は続行」。本番切替・mainマージの承認は未取得。承認設定は false/null のまま。
+2026-10-17 JST追記（容量測定は2026-10-16）。PR #4（base: Phase 1 PR #3）はDraft。本番容量は未削減。main・Pagesは変更していない。利用者からの最新回答は「ローカル保管・照合は未実施、検証は続行」。本番切替・mainマージの承認は未取得。承認設定は false/null のまま。
 
 ## 実装
 
@@ -63,7 +63,7 @@ Stateのみでは全体411,697,937 B（392.63 MiB）。10/14→10/15の同方式
 - ローカルブラウザでControls CSVを保存。元CSVと保存CSVのSHAは両方 `7bb7fec0f925778a40807b40945a2f91be1b3f511081991f5272f5407c888b42`。ファイル内容・数値精度を維持。ローカル画面でもPages YELLOW / Research RED、155.18 MiB、履歴不足表示を目視確認。
 - 実データの復旧用旧形式ツリーを生成：923,060,268 B、同じ3 State SHA一致。未公開。詳細 `phase2-evidence/rollback-real.json`。
 - 最終CI：[Run 38820256659](https://github.com/takina6-source/japan-swing-lens/actions/runs/38820256659)と[Run 38820256644](https://github.com/takina6-source/japan-swing-lens/actions/runs/38820256644)が成功。
-- 2回の実入力継続更新の比較：**非公開Actionsで実行中・受入判定は保留**。最終bulk対応Run [38818967541](https://github.com/takina6-source/japan-swing-lens/actions/runs/38818967541)。旧/新双方で同じDB・同じ価格/財務/benchmark入力・時計を使い、数値を丸めずCore/研究/3表示adapter/5/5×Momentum95+を比較する。実行完了前に成功扱いしない。
+- 2回の実入力継続更新の比較：**非公開Actionsで実行中・受入判定は保留**。bulk対応Run [38818967541](https://github.com/takina6-source/japan-swing-lens/actions/runs/38818967541)は60分の実行制限で終了し、成功とは扱わない。同Runの固定入力（gzip SHA `21df0c0a6774b847de42cf66bedb944044c560225b59590185246f1b175cba6f`、965銘柄、実際のCorporate Action候補35件）をそのまま再使用し、4回の全量処理に対応する240分枠で再検証する。開始DB・各回の途中証跡も保持する。旧/新双方で同じDB・同じ価格/財務/benchmark入力・時計を使い、数値を丸めずCore/研究/3表示adapter/5/5×Momentum95+を比較する。実行完了前に成功扱いしない。
 
 非公開workflowは`contents:read`/`actions:read`のみ。Pages環境・upload-pages-artifact・deploy-pages・Release作成・production cache保存を持たない。`workflow_dispatch`で本番workflowを実行していない。最終Actions実行記録による非デプロイ確認は完了後に追記する。
 

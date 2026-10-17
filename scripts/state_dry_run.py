@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import faulthandler
 import gzip
 import hashlib
 import importlib.util
@@ -88,6 +89,7 @@ def inputs(path):
 
 
 def worker(args):
+    faulthandler.dump_traceback_later(600, repeat=True)
     from engine.config import load_config
     from engine.database import Database
     from engine.validation import seed_validation
@@ -125,6 +127,7 @@ def worker(args):
                     response.json.side_effect = lambda: json.loads(response.content)
                     response.raise_for_status.side_effect = None if path.is_file() else __import__('requests').HTTPError('404')
                     return response
+                print(f'legacy: restoring {kind}', flush=True)
                 with patch('requests.get',side_effect=legacy_get):
                     if not seed(db,'https://fixed/'+kind):
                         raise RuntimeError('baseline seed failed')
@@ -196,7 +199,9 @@ def worker(args):
         else:
             source=output
         print(f'{args.mode}: completed continuation {iteration}', flush=True)
+        args.report.write_text(json.dumps({'mode':args.mode,'cycles':reports},ensure_ascii=False,indent=2))
     args.report.write_text(json.dumps({'mode':args.mode,'cycles':reports},ensure_ascii=False,indent=2))
+    faulthandler.cancel_dump_traceback_later()
     print('Two fixed-input full pipeline continuations completed:',args.mode)
 
 

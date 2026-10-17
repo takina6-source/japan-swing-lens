@@ -28,7 +28,7 @@ jobs:
     if: github.event_name == 'push'
     needs: tests
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 240
     permissions:
       contents: read
       actions: read
@@ -74,18 +74,49 @@ jobs:
               assert hashlib.sha256((Path(os.environ['PAGES_DIR'])/kind/'state.json').read_bytes()).hexdigest()==sha
           print('Pinned original artifact and three State SHA values verified')
           PY
-      - name: Capture provider inputs once (no publication)
-        run: python scripts/state_dry_run.py capture --db data/momentum.db --output "${{ runner.temp }}/fixed-input.json.gz" > "${{ runner.temp }}/capture-summary.json"
+      - name: Reuse the exact captured inputs from the timed-out verification
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: takina6-source/japan-swing-lens
+          run-id: 38818967541
+          artifact-ids: 12014562919
+          path: ${{ runner.temp }}/captured-input
+          merge-multiple: true
+      - name: Verify fixed inputs and retain the starting database for reproducibility
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}
+        run: |
+          python - <<'PY'
+          import gzip,hashlib,json,os,shutil,sqlite3
+          from pathlib import Path
+          out=Path(os.environ['EVIDENCE_DIR'])
+          for name in ('fixed-input.json.gz','fixed-input.json.sha256','capture-summary.json'):
+              shutil.copy2(out/'captured-input'/name,out/name)
+          request=json.loads(Path('docs/state-storage/PHASE2_DRY_RUN_REQUEST.json').read_bytes())
+          assert hashlib.sha256((out/'fixed-input.json.gz').read_bytes()).hexdigest()==request['fixed_input_archive_sha256']
+          with sqlite3.connect('data/momentum.db') as source,sqlite3.connect(out/'fixed-cache.sqlite') as target:
+              source.backup(target)
+          with (out/'fixed-cache.sqlite').open('rb') as source,(out/'fixed-cache.sqlite.gz').open('wb') as dest:
+              with gzip.GzipFile(filename='',mode='wb',fileobj=dest,mtime=0,compresslevel=9) as packed:
+                  shutil.copyfileobj(source,packed)
+          (out/'fixed-cache.sqlite.gz.sha256').write_text(hashlib.sha256((out/'fixed-cache.sqlite.gz').read_bytes()).hexdigest())
+          print('Pinned provider archive verified; starting DB retained without changing production cache')
+          PY
       - name: Replay two full updates with exactly the same captured inputs
         env:
           PYTHONUNBUFFERED: '1'
-        run: python scripts/state_dry_run.py run --db data/momentum.db --inputs "${{ runner.temp }}/fixed-input.json.gz" --pages "${{ runner.temp }}/frozen-pages" --baseline baseline --work "${{ runner.temp }}/replays" --report "${{ runner.temp }}/continuation-report.json" 2>&1 | tee "${{ runner.temp }}/continuation.log"
+        run: |
+          set -o pipefail
+          python scripts/state_dry_run.py run --db "${{ runner.temp }}/fixed-cache.sqlite" --inputs "${{ runner.temp }}/fixed-input.json.gz" --pages "${{ runner.temp }}/frozen-pages" --baseline baseline --work "${{ runner.temp }}/replays" --report "${{ runner.temp }}/continuation-report.json" 2>&1 | tee "${{ runner.temp }}/continuation.log"
       - name: Retain private verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase2-continuation-evidence-${{ github.run_id }}
           path: |
+            ${{ runner.temp }}/fixed-cache.sqlite.gz
+            ${{ runner.temp }}/fixed-cache.sqlite.gz.sha256
             ${{ runner.temp }}/capture-summary.json
             ${{ runner.temp }}/fixed-input.json.gz
             ${{ runner.temp }}/fixed-input.json.sha256

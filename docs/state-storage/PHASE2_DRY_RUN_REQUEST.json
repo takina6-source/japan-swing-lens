@@ -9,6 +9,8 @@
     "experimental": "c06fe262adcb52bb43c8839c477ca182d279b7d03ec396554d5076c1229a6412",
     "research": "2cb5f85866f975bee2624110678c9e7f0f5ee6b21436491ec7f3dc85d2c32a15"
   },
-  "attempt": 5,
-  "purpose": "Two fixed-input full pipeline continuations; no publication, Release write, or cache save"
+  "attempt": 6,
+  "purpose": "Two full baseline and gzip continuations; reuse identical provider archive; allow four full updates; preserve starting DB and per-cycle evidence; no deployment",
+  "fixed_input_archive_sha256": "21df0c0a6774b847de42cf66bedb944044c560225b59590185246f1b175cba6f",
+  "fixed_input_source_run": 38818967541
 }
