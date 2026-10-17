@@ -57,7 +57,7 @@ Stateのみでは全体411,697,937 B（392.63 MiB）。10/14→10/15の同方式
 
 ## 検証
 
-- `python -m pytest -q`：316 passed（`phase2-evidence/pytest-macos.txt`）。
+- `python -m pytest -q`：317 passed（`phase2-evidence/pytest-macos.txt`）。
 - `python scripts/fixed_input_regression.py`：11 artifacts passed（同`fixed-input-regression.txt`）。
 - `node tests/js/downloads.test.cjs`：通常保存、元SHA破損、圧縮SHA破損、API非対応の4ケース成功。
 - ローカルブラウザでControls CSVを保存。元CSVと保存CSVのSHAは両方 `7bb7fec0f925778a40807b40945a2f91be1b3f511081991f5272f5407c888b42`。ファイル内容・数値精度を維持。ローカル画面でもPages YELLOW / Research RED、155.18 MiB、履歴不足表示を目視確認。
@@ -109,3 +109,5 @@ python scripts/state_rollback.py --source /path/to/current-compressed-pages --ar
 |Pagesを表示専用にする|表示に必要な小さいJSONのみを公開できる|Stateとbulk配信先の契約・世代整合・監視・復旧設計を分離する必要。上記保存先への移行と合わせて実施するため中〜高程度|
 
 現在の90営業日の継続を優先し、全面移行・外部サービスの契約・新しい鍵の発行は実施していない。
+
+非公開比較の一時DBだけで `--fast-temp-db` を指定し、元cacheを新しい使い捨てDBへコピーした後、SQLのcommit/rollback境界を維持しつつ同期I/O待ちを省く。旧・新両方に同じ設定を適用し、本番DBや元cacheは開けないガードを設ける。異常終了した一時DBは破棄し、本番のseedには使用しない。通常同期のままの本番コードは変更しない。専用テストでロールバックと元cacheバイト列の不変を確認した。再現用DBのコピーからは研究入力に使わない`fetch_log`だけを除外・VACUUMし、古いHTTP例外文字列を添付しない。研究テーブルと価格・財務・setup情報は維持する。

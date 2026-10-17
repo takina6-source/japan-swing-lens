@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -88,6 +89,23 @@ def inputs(path):
     return value
 
 
+def fast_temporary_connections(database_class, path):
+    """Private disposable replay DB only; source caches and production stay untouched."""
+    original = database_class.connect
+    expected = path.resolve()
+    @contextmanager
+    def connect(self):
+        if self.path.resolve() != expected:
+            raise RuntimeError('fast replay cannot open a source or production database')
+        with original(self) as connection:
+            # Both modes retain the same SQL/transaction boundaries. An interrupted
+            # worker is discarded; no replay DB is used to seed production.
+            connection.execute('PRAGMA synchronous=OFF')
+            connection.execute('PRAGMA journal_mode=MEMORY')
+            yield connection
+    return patch.object(database_class, 'connect', connect)
+
+
 def worker(args):
     faulthandler.dump_traceback_later(600, repeat=True)
     from engine.config import load_config
@@ -100,6 +118,9 @@ def worker(args):
     args.work.mkdir(parents=True,exist_ok=False)
     db_path = args.work/'replay.sqlite'
     shutil.copy2(args.db,db_path)
+    if args.fast_temp_db:
+        fast_temporary_connections(Database,db_path).start()
+        print('Disposable replay DB uses memory journal; production/source DB synchronization is unchanged',flush=True)
     fixed = inputs(args.inputs)
     clock_text = fixed.get('clock', '2026-10-16T06:00:00+09:00')
     clock = datetime.fromisoformat(clock_text)
@@ -216,7 +237,8 @@ def run(args):
             env.pop(key,None)
         subprocess.run([sys.executable,str(script),'worker','--mode',mode,'--db',str(args.db.resolve()),
                         '--inputs',str(args.inputs.resolve()),'--pages',str(args.pages.resolve()),
-                        '--work',str((args.work/mode).resolve()),'--report',str(report.resolve())],env=env,check=True)
+                        '--work',str((args.work/mode).resolve()),'--report',str(report.resolve()),
+                        *(['--fast-temp-db'] if args.fast_temp_db else [])],env=env,check=True)
         results[mode]=json.loads(report.read_text())
         # Free the ~GB of working outputs before running the second mode on a hosted runner.
         shutil.rmtree(args.work/mode)
@@ -241,6 +263,7 @@ def main():
         p=sub.add_parser(name)
         for arg in ('db','inputs','pages','work','report'):
             p.add_argument('--'+arg,type=Path,required=True)
+        p.add_argument('--fast-temp-db',action='store_true',help='Skip physical sync only for disposable replay databases')
         if name=='worker': p.add_argument('--mode',choices=['legacy','gzip'],required=True)
         else: p.add_argument('--baseline',type=Path,required=True)
     args=parser.parse_args()
