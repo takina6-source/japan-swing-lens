@@ -1,0 +1,155 @@
+{
+  "snapshots": [
+    {
+      "market_date": "2026-10-14",
+      "source_run": 38639189826,
+      "before_bytes": 888039338,
+      "before_status": {
+        "budget_status": "RED",
+        "limit_bytes": 1000000000,
+        "pages_bytes": 888039338,
+        "usage_pct": 88.803934,
+        "remaining_bytes": 111960662,
+        "projected_180_sessions_bytes": null,
+        "sessions_to_limit": null,
+        "growth_bytes_per_session": null,
+        "forecast_confidence": "INSUFFICIENT_HISTORY",
+        "unit": "bytes; MiB=1048576 bytes; limit=decimal 1 GB"
+      },
+      "after": {
+        "budget_status": "YELLOW",
+        "limit_bytes": 1000000000,
+        "pages_bytes": 193650341,
+        "usage_pct": 19.365034,
+        "remaining_bytes": 806349659,
+        "projected_180_sessions_bytes": null,
+        "sessions_to_limit": null,
+        "growth_bytes_per_session": null,
+        "forecast_confidence": "INSUFFICIENT_HISTORY",
+        "unit": "bytes; MiB=1048576 bytes; limit=decimal 1 GB",
+        "logical_state_bytes": 542527683,
+        "compressed_state_bytes": 54459423,
+        "market_date": "2026-10-14",
+        "generation_id": "gh-38639189826",
+        "previous_delta_bytes": null,
+        "format_transition_delta_bytes": null,
+        "trend_7_sessions": {
+          "window_sessions": 7,
+          "observations": 1,
+          "required_observations": 8,
+          "complete": false,
+          "start_market_date": "2026-10-14",
+          "end_market_date": "2026-10-14",
+          "bytes_per_session": null
+        },
+        "trend_30_sessions": {
+          "window_sessions": 30,
+          "observations": 1,
+          "required_observations": 31,
+          "complete": false,
+          "start_market_date": "2026-10-14",
+          "end_market_date": "2026-10-14",
+          "bytes_per_session": null
+        },
+        "forecast_method": "max(complete 7/30 session slopes), negative growth floored at zero for projection",
+        "previous_run_delta_bytes": null
+      },
+      "pages_reduction_pct": 78.19349518500722,
+      "bulk_original_bytes": 233677199,
+      "bulk_gzip_bytes": 27318424,
+      "bulk_files": 18,
+      "raw_history_contracts_preserved": [
+        "experimental/history.json",
+        "validation/signal_history.json"
+      ],
+      "original_bytes_verified": true,
+      "static_assets": "current Phase 2 index.html/research.js/sw.js/downloads.js"
+    },
+    {
+      "market_date": "2026-10-15",
+      "source_run": 38806096548,
+      "before_bytes": 923057629,
+      "before_status": {
+        "budget_status": "RED",
+        "limit_bytes": 1000000000,
+        "pages_bytes": 923057629,
+        "usage_pct": 92.305763,
+        "remaining_bytes": 76942371,
+        "projected_180_sessions_bytes": null,
+        "sessions_to_limit": null,
+        "growth_bytes_per_session": null,
+        "forecast_confidence": "INSUFFICIENT_HISTORY",
+        "unit": "bytes; MiB=1048576 bytes; limit=decimal 1 GB"
+      },
+      "after": {
+        "budget_status": "YELLOW",
+        "limit_bytes": 1000000000,
+        "pages_bytes": 199460077,
+        "usage_pct": 19.946008,
+        "remaining_bytes": 800539923,
+        "projected_180_sessions_bytes": null,
+        "sessions_to_limit": null,
+        "growth_bytes_per_session": null,
+        "forecast_confidence": "INSUFFICIENT_HISTORY",
+        "unit": "bytes; MiB=1048576 bytes; limit=decimal 1 GB",
+        "logical_state_bytes": 568573240,
+        "compressed_state_bytes": 57187231,
+        "market_date": "2026-10-15",
+        "generation_id": "gh-38806096548",
+        "previous_delta_bytes": null,
+        "format_transition_delta_bytes": null,
+        "trend_7_sessions": {
+          "window_sessions": 7,
+          "observations": 1,
+          "required_observations": 8,
+          "complete": false,
+          "start_market_date": "2026-10-15",
+          "end_market_date": "2026-10-15",
+          "bytes_per_session": null
+        },
+        "trend_30_sessions": {
+          "window_sessions": 30,
+          "observations": 1,
+          "required_observations": 31,
+          "complete": false,
+          "start_market_date": "2026-10-15",
+          "end_market_date": "2026-10-15",
+          "bytes_per_session": null
+        },
+        "forecast_method": "max(complete 7/30 session slopes), negative growth floored at zero for projection",
+        "previous_run_delta_bytes": null
+      },
+      "pages_reduction_pct": 78.39137332995273,
+      "bulk_original_bytes": 240521736,
+      "bulk_gzip_bytes": 28272154,
+      "bulk_files": 18,
+      "raw_history_contracts_preserved": [
+        "experimental/history.json",
+        "validation/signal_history.json"
+      ],
+      "original_bytes_verified": true,
+      "static_assets": "current Phase 2 index.html/research.js/sw.js/downloads.js"
+    }
+  ],
+  "one_interval_growth_bytes": 5809736,
+  "conditional_sessions_to_limit": 137.79282277198138,
+  "conditional_after_69_sessions_bytes": 600331861,
+  "sensitivity_69_sessions": [
+    {
+      "growth_multiplier": 1,
+      "final_bytes": 600331861,
+      "below_1gb": true
+    },
+    {
+      "growth_multiplier": 2,
+      "final_bytes": 1001203645,
+      "below_1gb": false
+    },
+    {
+      "growth_multiplier": 3,
+      "final_bytes": 1402075429,
+      "below_1gb": false
+    }
+  ],
+  "confidence": "LOW: only one market-session interval; not a measured 7/30-session trend"
+}

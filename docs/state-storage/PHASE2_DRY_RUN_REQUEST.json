@@ -9,8 +9,8 @@
     "experimental": "c06fe262adcb52bb43c8839c477ca182d279b7d03ec396554d5076c1229a6412",
     "research": "2cb5f85866f975bee2624110678c9e7f0f5ee6b21436491ec7f3dc85d2c32a15"
   },
-  "attempt": 8,
-  "purpose": "Two full baseline and gzip continuations; reuse identical provider archive; allow four full updates; preserve starting DB and per-cycle evidence; no deployment",
+  "attempt": 9,
+  "purpose": "One fresh process per daily update; retain the DB and previous State, reuse pinned provider inputs; no timed stack dumping; no deployment",
   "fixed_input_archive_sha256": "21df0c0a6774b847de42cf66bedb944044c560225b59590185246f1b175cba6f",
   "fixed_input_source_run": 38818967541,
   "artifact_zip_sha256": "7d37ff4c40f6b1192b43f16b22995650282ad8161b136ef9d105ce2ab8efb30b",

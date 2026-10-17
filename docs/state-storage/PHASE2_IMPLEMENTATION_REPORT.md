@@ -1,15 +1,15 @@
 # Phase 2 実装・検証報告（本番切替前）
 
-2026-10-17 JST追記（容量測定は2026-10-16）。PR #4（base: Phase 1 PR #3）はDraft。本番容量は未削減。main・Pagesは変更していない。利用者からの最新回答は「ローカル保管・照合は未実施、検証は続行」。本番切替・mainマージの承認は未取得。承認設定は false/null のまま。
+2026-10-17 JST（元データ市場日2026-10-15）。PR #4（base: Phase 1 PR #3）はDraft。本番容量は未削減。main・Pagesは変更していない。利用者からの最新回答は「ローカル保管・照合は未実施、検証は続行」。本番切替・mainマージの承認は未取得。承認設定は false/null のまま。
 
 ## 実装
 
 - `engine/state_generation.py`：3系統のStateを別の未公開ディレクトリへ決定的gzip出力。元バイト列・SHA・構造・件数・IDを検証してから未公開側のraw重複を除去。公開元は保持する。
 - Pages外の独立Releaseを世代の基準にする。3系統・市場日・producer Run・親世代・圧縮SHA・履歴SHAを固定し、cold cacheでも古いPages・途中デプロイ・混在・欠落は停止する。全ファイルを検証してからDB取込を始める。
 - 更新前のSignal/Control/Research Event等の主キー、H1–H4/Familyの定義、Version/Freeze、LIVE_FORWARD/HOLDOUTの区分を更新後も照合する。従来の成熟履歴処理・計算式は変更しない。
-- `engine/bulk_downloads.py`：Validation/ExperimentalのSignals/History/Performance/Controls/Control PerformanceのJSON/CSV計20個を可逆gzip化。元バイト列は全数照合。利用者は外部ツールから旧URLを直接取得していないと回答済み。`index.json`の`available_files`とダウンロードリンクを更新する。
+- `engine/bulk_downloads.py`：Validation/ExperimentalのSignals/History/Performance/Controls/Control PerformanceのJSON/CSV計18個を可逆gzip化。元バイト列は全数照合。利用者は外部ツールから旧URLを直接取得していないと回答済み。`index.json`の`available_files`とダウンロードリンクを更新する。
 - `public/dashboard/downloads.js`：画面のCSVリンクはgzipを取得し、圧縮側・解凍側SHAとバイト数を検証して元ファイル名のCSVを保存する。対応APIのないブラウザは説明付きでgzipを保存する。破損時は保存しない。Service Workerの世代を更新する。
-- Morning Brief、What Changed、Committee、Coreデータ、summary、Research画面が取得するJSONのURL・内容は圧縮対象から除外する。
+- Committeeの`core_history_path`/`experimental_history_path`が指すValidation/Experimentalの2履歴JSONは非圧縮で維持する。Morning Brief、What Changed、Committee、Coreデータ、summary、Research画面が取得するJSONのURL・内容は圧縮対象から除外する。
 - `engine/storage_metrics.py`・Research UI：実ファイル合計、State論理/圧縮容量、前回実行/市場日との差、実測7/30営業日トレンド、180営業日予測、残容量・到達営業日数・信頼性を表示。Research単体の従来警告も別に残す。
 - 日次workflow案：独立世代確認→分析→別ディレクトリに圧縮→同じ世代の独立Releaseバックアップ→再ダウンロード・SHA・全復元→Pages公開→3 Stateと配信ファイルの再検証。失敗時は次回も古い世代へ黙って戻らない。cache保存は成功後のみ。
 - `scripts/state_rollback.py`：最新の同一世代バックアップから旧形式を別の未公開ツリーへ復元する。古いバックアップによる新しい記録の消失を拒否し、gzip配信CSVも元バイト列へ戻す。容量上限超過時は公開できると扱わず停止する。デプロイ機能はない。
@@ -21,14 +21,14 @@
 |対象|圧縮前|圧縮後|削減|
 |---|---:|---:|---:|
 |3 State|568,573,240 B（542.23 MiB）|57,187,231 B（54.54 MiB）|89.94%|
-|公開ツリー全体|923,057,629 B（880.30 MiB）|162,718,312 B（155.18 MiB）|82.37%|
-|20 bulk JSON/CSV|280,317,705 B|31,327,842 B|88.82%|
+|公開ツリー全体|923,057,629 B（880.30 MiB）|199,460,077 B（190.22 MiB）|78.39%|
+|18 bulk JSON/CSV|240,521,736 B|28,272,154 B|88.25%|
 
-公開全体は同じ凍結Pagesデータをステージした実ファイルの合計（manifest・世代台帳・履歴・16KiB固定サイズの運用metrics JSONを含む）。既存静的アセットに配信handlerを追加した比較。本番切替による実績ではない。
+公開全体は同じ凍結Pagesデータをステージした実ファイルの合計（manifest・世代台帳・履歴・16KiB固定サイズの運用metrics JSONを含む）。凍結データに最終Phase 2のindex.html/research.js/sw.js/downloads.jsを組み合わせた比較。本番切替による実績ではない。
 
 Stateのみでは全体411,697,937 B（392.63 MiB）。10/14→10/15の同方式比較で11.16 MiB/営業日の増加、条件付き猶予約50営業日となり、残り69営業日に足りないためbulk配信も圧縮した。
 
-追加圧縮込みの同じ2世代の増加は **4,298,977 B（4.10 MiB）/1営業日区間**。上限まで837,281,688 B（798.49 MiB）。同じ速度を仮定すると約194.76営業日の余裕、69営業日後459,347,725 B（438.07 MiB）。ただし観測は1区間だけで、7/30営業日の実測平均でも研究完了の保証でもない。増加が2倍なら69営業日後755,977,138 B、3倍なら1,052,606,551 Bとなる。研究完了を保証せず、実測7営業日以降の予測で早期警告する。詳細は `phase2-evidence/capacity-with-bulk.json`。
+追加圧縮込みの同じ2世代の増加は **5,809,736 B（5.54 MiB）/1営業日区間**。上限まで800,539,923 B（763.45 MiB）。同じ速度を仮定すると約137.79営業日の余裕、69営業日後600,331,861 B（572.52 MiB）。ただし観測は1区間だけで、7/30営業日の実測平均でも研究完了の保証でもない。2倍の増加では残り69営業日の容量を満たせない。この1区間だけで研究完了の安全性が確立したとは扱わない。増加が2倍なら69営業日後1,001,203,645 B、3倍なら1,402,075,429 Bとなる。研究完了を保証せず、実測7営業日以降の予測で早期警告する。詳細は `phase2-evidence/capacity-final.json`。
 
 ### 元Stateと復元後のSHA-256（全系統一致）
 
@@ -53,14 +53,14 @@ Stateのみでは全体411,697,937 B（392.63 MiB）。10/14→10/15の同方式
 - YELLOW：70%以上、180営業日予測85%以上、または履歴不足。
 - GREEN：それ以外。Research旧警告が残る場合、全体が健全とは表示しない。
 - 7/30営業日の傾きは市場カレンダー上8/31点が揃ったときだけ計算し、大きい方を予測に使用する。欠損・同日再実行・保存方式の変更を営業日増加に見せない。推定では負の成長を0にする。
-- 圧縮前92.31%は新方式でもRED。圧縮後16.27%は履歴不足のためYELLOW。Researchの既存REDは保持する。圧縮を理由にGREENへ書き換えていない。
+- 圧縮前92.31%は新方式でもRED。圧縮後19.95%は履歴不足のためYELLOW。Researchの既存REDは保持する。圧縮を理由にGREENへ書き換えていない。
 
 ## 検証
 
-- `python -m pytest -q`：317 passed（`phase2-evidence/pytest-macos.txt`）。
+- `python -m pytest -q`：319 passed（`phase2-evidence/pytest-macos.txt`）。
 - `python scripts/fixed_input_regression.py`：11 artifacts passed（同`fixed-input-regression.txt`）。
 - `node tests/js/downloads.test.cjs`：通常保存、元SHA破損、圧縮SHA破損、API非対応の4ケース成功。
-- ローカルブラウザでControls CSVを保存。元CSVと保存CSVのSHAは両方 `7bb7fec0f925778a40807b40945a2f91be1b3f511081991f5272f5407c888b42`。ファイル内容・数値精度を維持。ローカル画面でもPages YELLOW / Research RED、155.18 MiB、履歴不足表示を目視確認。
+- ローカルブラウザでControls CSVを保存。元CSVと保存CSVのSHAは両方 `7bb7fec0f925778a40807b40945a2f91be1b3f511081991f5272f5407c888b42`。ファイル内容・数値精度を維持。ローカル画面でもPages YELLOW / Research RED、190.22 MiB、履歴不足表示を目視確認。
 - 実データの復旧用旧形式ツリーを生成：923,060,268 B、同じ3 State SHA一致。未公開。詳細 `phase2-evidence/rollback-real.json`。
 - 最終CI：[Run 38820256659](https://github.com/takina6-source/japan-swing-lens/actions/runs/38820256659)と[Run 38820256644](https://github.com/takina6-source/japan-swing-lens/actions/runs/38820256644)が成功。
 - 2回の実入力継続更新の比較：**非公開Actionsで実行中・受入判定は保留**。bulk対応Run [38818967541](https://github.com/takina6-source/japan-swing-lens/actions/runs/38818967541)は60分の実行制限で終了し、成功とは扱わない。同Runの固定入力（gzip SHA `21df0c0a6774b847de42cf66bedb944044c560225b59590185246f1b175cba6f`、965銘柄、実際のCorporate Action候補35件）をそのまま再使用し、4回の全量処理に対応する240分枠で再検証する。開始DB・各回の途中証跡も保持する。[Run39021459870](https://github.com/takina6-source/japan-swing-lens/actions/runs/39021459870)はPages artifactの保存期限切れにより準備段階で停止。手元の元ZIP（同じSHA）を[公開済みPages専用fixture Release](https://github.com/takina6-source/japan-swing-lens/releases/tag/jsl-state-verification-fixture-run-38806096548)へ退避し、再取得元を変更した。ZIP/TAR/3 StateのSHAをすべて固定して再検証する。プロバイダー入力の新規Release添付は自動承認レビューで拒否されたため実施せず、既存Actions artifactだけを利用する。旧/新双方で同じDB・同じ価格/財務/benchmark入力・時計を使い、数値を丸めずCore/研究/3表示adapter/5/5×Momentum95+を比較する。実行完了前に成功扱いしない。
@@ -96,7 +96,7 @@ python scripts/state_rollback.py --source /path/to/current-compressed-pages --ar
 
 最後のコマンドは復旧用ファイル生成だけで、公開しない。初回切替後にデータが追加された場合はRun38806096548のバックアップで戻さず、その最新世代の独立Releaseを使用する。旧形式ツリーが1GBを超える場合は停止し、圧縮形式のままの修復等を判断する。
 
-公開後に使う検証処理もlocalhost上で実行し、3 StateのDB復元・市場日・履歴・表示ファイル・20個のbulk配信の元/圧縮SHAが成功した（`phase2-evidence/local-publication-verification.txt`）。実際の本番公開後の検証とは区別する。
+公開後に使う検証処理もlocalhost上で実行し、3 StateのDB復元・市場日・履歴・表示ファイル・18個のbulk配信の元/圧縮SHAが成功した（`phase2-evidence/local-publication-verification.txt`）。実際の本番公開後の検証とは区別する。
 
 ## 長期方式の比較（今回の実装対象外）
 
@@ -111,3 +111,5 @@ python scripts/state_rollback.py --source /path/to/current-compressed-pages --ar
 現在の90営業日の継続を優先し、全面移行・外部サービスの契約・新しい鍵の発行は実施していない。
 
 非公開比較の一時DBだけで `--fast-temp-db` を指定し、元cacheを新しい使い捨てDBへコピーした後、SQLのcommit/rollback境界を維持しつつ同期I/O待ちを省く。旧・新両方に同じ設定を適用し、本番DBや元cacheは開けないガードを設ける。異常終了した一時DBは破棄し、本番のseedには使用しない。通常同期のままの本番コードは変更しない。専用テストでロールバックと元cacheバイト列の不変を確認した。再現用DBのコピーからは研究入力に使わない`fetch_log`だけを除外・VACUUMし、古いHTTP例外文字列を添付しない。研究テーブルと価格・財務・setup情報は維持する。
+
+全量比較のRun39022080568は旧形式1回目（965銘柄・4277 Research Event）を完了後、2回目の途中でSIGSEGV終了。同期を変更していないRun39021811270でもSIGSEGVを確認し、原因は未確定。数値不一致と判断する比較段階には到達していない。テスト専用の定期スタック取得を外し、実際の日次処理と同様に1更新1プロセスへ分離して再検証する。前回DBと出力Stateは引き継ぎ、2回目に元cacheをコピーし直さない。小さい全経路fixtureで旧・新各2回を別プロセスで実行し、全出力・Morning Briefの入力hashまで一致を確認した。Validation/Experimentalの生成時刻も固定し、provenance hashの時刻由来の誤差を防ぐ。

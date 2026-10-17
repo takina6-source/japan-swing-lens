@@ -107,7 +107,7 @@ def fast_temporary_connections(database_class, path):
 
 
 def worker(args):
-    faulthandler.dump_traceback_later(600, repeat=True)
+    faulthandler.enable()
     from engine.config import load_config
     from engine.database import Database
     from engine.validation import seed_validation
@@ -115,9 +115,14 @@ def worker(args):
     from engine.research.pipeline import seed_research
     from scripts.state_replay import digest as result_digest
     module = exporter()
-    args.work.mkdir(parents=True,exist_ok=False)
+    continuing = args.iteration == 2
+    args.work.mkdir(parents=True,exist_ok=continuing)
     db_path = args.work/'replay.sqlite'
-    shutil.copy2(args.db,db_path)
+    if continuing:
+        if not db_path.is_file():
+            raise RuntimeError("second continuation must retain the first database")
+    else:
+        shutil.copy2(args.db,db_path)
     if args.fast_temp_db:
         fast_temporary_connections(Database,db_path).start()
         print('Disposable replay DB uses memory journal; production/source DB synchronization is unchanged',flush=True)
@@ -131,12 +136,20 @@ def worker(args):
     source = args.pages
     ledger = None
     reports = []
-    if args.mode == 'gzip':
+    if continuing:
+        previous_report=json.loads(args.report.read_bytes())
+        if previous_report['mode'] != args.mode or [c['iteration'] for c in previous_report['cycles']] != [1]:
+            raise RuntimeError('invalid prior continuation report')
+        reports=previous_report['cycles']
+        source=args.work/('compressed-1' if args.mode=='gzip' else 'cycle-1')
+        if args.mode=='gzip':
+            ledger=json.loads((source/'state-generation.json').read_bytes())
+    elif args.mode == 'gzip':
         from engine.state_generation import finalize
         ledger,_ = finalize(source,args.work/'initial',run_id=100,commit='a'*40,
                              market_date=json.loads((source/'data/snapshot.json').read_bytes())['as_of'])
         source = args.work/'initial'
-    for iteration in (1,2):
+    for iteration in ([args.iteration] if args.iteration is not None else (1,2)):
         print(f'{args.mode}: starting continuation {iteration}', flush=True)
         db = Database(db_path)
         if args.mode == 'legacy':
@@ -173,6 +186,9 @@ def worker(args):
             raise AssertionError('network access during fixed-input replay')
         with patch('requests.sessions.Session.request',no_network), patch('socket.create_connection',no_network), \
              patch.object(module,'datetime',FixedDatetime), \
+             patch('engine.validation.datetime',FixedDatetime), \
+             patch('engine.experimental.validation.datetime',FixedDatetime), \
+             patch('scripts.export_simple_changes.datetime',FixedDatetime), \
              patch('engine.research.pipeline.datetime',FixedDatetime), \
              patch('engine.research.registry.datetime',FixedDatetime):
             module.export(False,'主要500+Growth',db_path=db_path,dashboard=output,captured_input=fixed)
@@ -206,7 +222,7 @@ def worker(args):
         cfg=load_config()
         rows=[r for r in performance if r.get('initial_aligned_count')==5 and (r.get('momentum_percentile') or 0)>=95
               and r.get('return_5d_pct') is not None and all(r.get(k)==cfg[k] for k in ('strategy_version','threshold_version','schema_version'))]
-        reports.append({'iteration':iteration,'artifacts':artifacts,'segment':canonical(rows)})
+        reports.append({'iteration':iteration,'worker_pid':os.getpid(),'artifacts':artifacts,'segment':canonical(rows)})
         if args.mode == 'gzip':
             from engine.state_generation import finalize
             history=json.loads((source/'storage/history.json').read_bytes())
@@ -222,7 +238,6 @@ def worker(args):
         print(f'{args.mode}: completed continuation {iteration}', flush=True)
         args.report.write_text(json.dumps({'mode':args.mode,'cycles':reports},ensure_ascii=False,indent=2))
     args.report.write_text(json.dumps({'mode':args.mode,'cycles':reports},ensure_ascii=False,indent=2))
-    faulthandler.cancel_dump_traceback_later()
     print('Two fixed-input full pipeline continuations completed:',args.mode)
 
 
@@ -235,10 +250,12 @@ def run(args):
         env={**os.environ,'PYTHONPATH':str(engine_root.resolve())}
         for key in ('STATE_AUTHORITY_FILE','PHASE2A_INPUT_DIR','VALIDATION_SEED_URL','EXPERIMENTAL_SEED_URL','RESEARCH_SEED_URL'):
             env.pop(key,None)
-        subprocess.run([sys.executable,str(script),'worker','--mode',mode,'--db',str(args.db.resolve()),
-                        '--inputs',str(args.inputs.resolve()),'--pages',str(args.pages.resolve()),
-                        '--work',str((args.work/mode).resolve()),'--report',str(report.resolve()),
-                        *(['--fast-temp-db'] if args.fast_temp_db else [])],env=env,check=True)
+        for iteration in (1,2):
+            subprocess.run([sys.executable,str(script),'worker','--mode',mode,'--iteration',str(iteration),
+                            '--db',str(args.db.resolve()),'--inputs',str(args.inputs.resolve()),
+                            '--pages',str(args.pages.resolve()),'--work',str((args.work/mode).resolve()),
+                            '--report',str(report.resolve()),
+                            *(['--fast-temp-db'] if args.fast_temp_db else [])],env=env,check=True)
         results[mode]=json.loads(report.read_text())
         # Free the ~GB of working outputs before running the second mode on a hosted runner.
         shutil.rmtree(args.work/mode)
@@ -264,7 +281,9 @@ def main():
         for arg in ('db','inputs','pages','work','report'):
             p.add_argument('--'+arg,type=Path,required=True)
         p.add_argument('--fast-temp-db',action='store_true',help='Skip physical sync only for disposable replay databases')
-        if name=='worker': p.add_argument('--mode',choices=['legacy','gzip'],required=True)
+        if name=='worker':
+            p.add_argument('--mode',choices=['legacy','gzip'],required=True)
+            p.add_argument('--iteration',type=int,choices=[1,2])
         else: p.add_argument('--baseline',type=Path,required=True)
     args=parser.parse_args()
     {'capture':capture,'worker':worker,'run':run}[args.command](args)
