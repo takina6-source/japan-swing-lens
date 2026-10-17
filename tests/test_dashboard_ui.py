@@ -42,6 +42,6 @@ def test_dashboard_shell_cache_versions_match():
     assert "app.js?v=16" in service_worker
     assert "upgrade.css?v=16" in html
     assert "upgrade.css?v=16" in service_worker
-    assert "research.js?v=14" in html
-    assert "research.js?v=14" in service_worker
-    assert "swing-lens-v16" in service_worker
+    assert "research.js?v=15" in html
+    assert "research.js?v=15" in service_worker
+    assert "swing-lens-v17-storage" in service_worker

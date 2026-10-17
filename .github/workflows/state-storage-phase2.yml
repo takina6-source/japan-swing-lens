@@ -1,0 +1,143 @@
+name: State storage Phase 2 private verification
+
+on:
+  pull_request:
+  push:
+    branches: [codex/state-storage-phase2]
+    paths: [docs/state-storage/PHASE2_DRY_RUN_REQUEST.json]
+
+permissions: {}
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e '.[jquants,test]'
+      - run: python -m pytest -q
+      - run: python scripts/fixed_input_regression.py
+      - run: node tests/js/downloads.test.cjs
+
+  private-continuation:
+    if: github.event_name == 'push'
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e '.[jquants,test]'
+      - uses: actions/checkout@v4
+        with:
+          ref: 521da73f4c13d1210750ded96c18c85b022528c9
+          path: baseline
+      - name: Restore fixed production cache without saving it
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: swing-data-Linux-38806096548
+          fail-on-cache-miss: true
+      - name: Read the public frozen Pages fixture from its independent Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIXTURE_DIR: ${{ runner.temp }}/frozen-artifact
+        run: |
+          mkdir -p "$FIXTURE_DIR"
+          gh release download jsl-state-verification-fixture-run-38806096548 --repo takina6-source/japan-swing-lens --pattern frozen-pages-run38806096548.zip --dir "$FIXTURE_DIR"
+          python - <<'PY'
+          import hashlib,json,os,zipfile
+          from pathlib import Path
+          request=json.loads(Path('docs/state-storage/PHASE2_DRY_RUN_REQUEST.json').read_bytes())
+          root=Path(os.environ['FIXTURE_DIR'])
+          archive=root/'frozen-pages-run38806096548.zip'
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()==request['artifact_zip_sha256']
+          with zipfile.ZipFile(archive) as bundle:
+              assert bundle.namelist()==['artifact.tar']
+              (root/'artifact.tar').write_bytes(bundle.read('artifact.tar'))
+          PY
+      - name: Verify the pinned source and unpack it
+        env:
+          TARBALL: ${{ runner.temp }}/frozen-artifact/artifact.tar
+          PAGES_DIR: ${{ runner.temp }}/frozen-pages
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,tarfile
+          from pathlib import Path
+          r=json.loads(Path('docs/state-storage/PHASE2_DRY_RUN_REQUEST.json').read_text())
+          tar=Path(os.environ['TARBALL'])
+          assert hashlib.sha256(tar.read_bytes()).hexdigest()==r['artifact_tar_sha256']
+          with tarfile.open(tar) as t: t.extractall(os.environ['PAGES_DIR'],filter='data')
+          for kind,sha in r['state_sha256'].items():
+              assert hashlib.sha256((Path(os.environ['PAGES_DIR'])/kind/'state.json').read_bytes()).hexdigest()==sha
+          print('Pinned original artifact and three State SHA values verified')
+          PY
+      - name: Reuse the exact captured inputs from the timed-out verification
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: takina6-source/japan-swing-lens
+          run-id: 38818967541
+          artifact-ids: 12014562919
+          path: ${{ runner.temp }}/captured-input
+          merge-multiple: true
+      - name: Verify fixed inputs and retain the starting database for reproducibility
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}
+        run: |
+          python - <<'PY'
+          import gzip,hashlib,json,os,shutil,sqlite3
+          from pathlib import Path
+          out=Path(os.environ['EVIDENCE_DIR'])
+          for name in ('fixed-input.json.gz','fixed-input.json.sha256','capture-summary.json'):
+              shutil.copy2(out/'captured-input'/name,out/name)
+          request=json.loads(Path('docs/state-storage/PHASE2_DRY_RUN_REQUEST.json').read_bytes())
+          assert hashlib.sha256((out/'fixed-input.json.gz').read_bytes()).hexdigest()==request['fixed_input_archive_sha256']
+          with sqlite3.connect('data/momentum.db') as source,sqlite3.connect(out/'fixed-cache.sqlite') as target:
+              source.backup(target)
+          # Provider fetch logs are operational, never analysis inputs. Do not
+          # retain old HTTP exception strings in the reproducibility artifact.
+          with sqlite3.connect(out/'fixed-cache.sqlite') as clean:
+              clean.execute('PRAGMA secure_delete=ON')
+              clean.execute('DELETE FROM fetch_log')
+              clean.commit()
+              clean.execute('VACUUM')
+          with (out/'fixed-cache.sqlite').open('rb') as source,(out/'fixed-cache.sqlite.gz').open('wb') as dest:
+              with gzip.GzipFile(filename='',mode='wb',fileobj=dest,mtime=0,compresslevel=9) as packed:
+                  shutil.copyfileobj(source,packed)
+          (out/'fixed-cache.sqlite.gz.sha256').write_text(hashlib.sha256((out/'fixed-cache.sqlite.gz').read_bytes()).hexdigest())
+          print('Pinned provider archive verified; starting DB retained without changing production cache')
+          PY
+      - name: Replay two full updates with exactly the same captured inputs
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -o pipefail
+          python scripts/state_dry_run.py run --fast-temp-db --db "${{ runner.temp }}/fixed-cache.sqlite" --inputs "${{ runner.temp }}/fixed-input.json.gz" --pages "${{ runner.temp }}/frozen-pages" --baseline baseline --work "${{ runner.temp }}/replays" --report "${{ runner.temp }}/continuation-report.json" 2>&1 | tee "${{ runner.temp }}/continuation.log"
+      - name: Retain private verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-continuation-evidence-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/fixed-cache.sqlite.gz
+            ${{ runner.temp }}/fixed-cache.sqlite.gz.sha256
+            ${{ runner.temp }}/capture-summary.json
+            ${{ runner.temp }}/fixed-input.json.gz
+            ${{ runner.temp }}/fixed-input.json.sha256
+            ${{ runner.temp }}/continuation-report.json
+            ${{ runner.temp }}/continuation.log
+            ${{ runner.temp }}/replays/*.json
+          if-no-files-found: error
+          retention-days: 30

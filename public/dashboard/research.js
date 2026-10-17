@@ -52,7 +52,7 @@
   const date = value => present(value) ? esc(String(value).slice(0, 10)) : 'N/A';
   const percent = (value, ratio = false) => present(value)
     ? `${number(Number(value) * (ratio ? 100 : 1), 1)}%` : '未計算';
-  const bytes = value => present(value) ? `${number(Number(value) / 1024 / 1024, 2)} MB` : 'N/A';
+  const bytes = value => present(value) ? `${number(Number(value) / 1024 / 1024, 2)} MiB` : 'N/A';
   const valueText = value => {
     if (!present(value)) return 'N/A';
     if (typeof value === 'object') return esc(JSON.stringify(value));
@@ -279,14 +279,22 @@
     return `<article class="research-mini-card"><div class="diagnostic-value"><div><h3>${esc(japanese)}</h3><span class="original">${esc(original)}</span></div>${original.includes('PATH') ? help('path') : help('diagnostics')}</div><strong>${value}</strong><p class="diagnostic-meta">対象 ${number(metric.count)}件</p>${detail ? `<details class="research-details research-detail-only"><summary>診断値の詳細</summary><dl class="research-detail-grid">${detail}</dl></details>` : ''}</article>`;
   }
 
+  function physicalStorageMarkup(pages) {
+    if (!pages) return '';
+    const rate = trend => present(trend?.bytes_per_session)
+      ? `${bytes(trend.bytes_per_session)} / 営業日` : `履歴不足（${number(trend?.observations)} / ${number(trend?.required_observations)}観測）`;
+    return `<div class="system-detail"><div><small>Pages公開全体の実容量</small><strong>${bytes(pages.pages_bytes)} / ${bytes(pages.limit_bytes)}</strong></div><div><small>上限までの残容量</small><strong>${bytes(pages.remaining_bytes)}（使用率${percent(pages.usage_pct)}）</strong></div><div><small>3系統State・解凍後</small><strong>${bytes(pages.logical_state_bytes)}</strong></div><div><small>3系統State・gzip実容量</small><strong>${bytes(pages.compressed_state_bytes)}</strong></div><div><small>前回実行からの増加</small><strong>${bytes(pages.previous_run_delta_bytes)}</strong></div><div><small>前市場日からの増加</small><strong>${bytes(pages.previous_delta_bytes)}</strong></div><div><small>直近7営業日の傾向</small><strong>${rate(pages.trend_7_sessions)}</strong></div><div><small>直近30営業日の傾向</small><strong>${rate(pages.trend_30_sessions)}</strong></div><div><small>180営業日後のPages予測</small><strong>${bytes(pages.projected_180_sessions_bytes)}</strong></div><div><small>上限までの推定営業日</small><strong>${present(pages.sessions_to_limit) ? number(pages.sessions_to_limit, 1) : '推定不可'}</strong></div><div><small>容量予測の信頼性</small><strong>${pages.forecast_confidence === 'INSUFFICIENT_HISTORY' ? '履歴不足・予測未確定' : '実測成長に基づく条件付き予測'}</strong></div></div>`;
+  }
+
   function systemMarkup() {
     const performance = state.data.performance_metrics || {};
     const storage = state.data.storage_metrics || {};
     const status = storage.budget_status;
-    const healthy = performance.warning === false && status === 'GREEN';
+    const researchStatus = storage.research_budget_status || status;
+    const healthy = performance.warning === false && status === 'GREEN' && researchStatus === 'GREEN';
     const unknown = !present(performance.warning) && !present(status);
-    const label = unknown ? '? 状態を確認できません' : healthy ? '✓ 正常' : `! 要確認（${status || 'Performance warning'}）`;
-    return `<section class="research-section" aria-labelledby="systemTitle"><div class="research-section-head"><div><p class="eyebrow">SYSTEM｜処理と保存量</p><h2 id="systemTitle">システム状態</h2></div><p>警告がないときは、かんたん表示では詳細値を省略します。</p></div><div class="research-panel"><div class="system-state ${healthy ? 'ok' : 'warn'}">${esc(label)}</div><div class="system-detail research-detail-only"><div><small>Research処理時間</small><strong>${present(performance.research_total_seconds) ? `${number(performance.research_total_seconds, 2)}秒` : 'N/A'}</strong></div><div><small>Workflowに占める割合</small><strong>${present(performance.research_share_pct) ? `${number(performance.research_share_pct, 2)}%` : 'N/A'}</strong></div><div><small>Control matching時間</small><strong>${present(performance.research_control_seconds) ? `${number(performance.research_control_seconds, 2)}秒` : 'N/A'}</strong></div><div><small>Research state容量</small><strong>${bytes(storage.research_state_bytes)}</strong></div><div><small>Validation state容量</small><strong>${bytes(storage.validation_state_bytes)}</strong></div><div><small>180日予測</small><strong>${present(storage.projected_180d_size_mb) ? `${number(storage.projected_180d_size_mb, 2)} MB` : 'N/A'}</strong></div><div><small>容量判定</small><strong>${valueText(status)}</strong></div></div></div></section>`;
+    const label = unknown ? '? 状態を確認できません' : healthy ? '✓ 正常' : `! 要確認（${status || 'Performance warning'}${storage.pages ? ` / Research ${researchStatus}` : ''}）`;
+    return `<section class="research-section" aria-labelledby="systemTitle"><div class="research-section-head"><div><p class="eyebrow">SYSTEM｜処理と保存量</p><h2 id="systemTitle">システム状態</h2></div><p>警告がないときは、かんたん表示では詳細値を省略します。</p></div><div class="research-panel"><div class="system-state ${healthy ? 'ok' : 'warn'}">${esc(label)}</div>${physicalStorageMarkup(storage.pages)}<div class="system-detail research-detail-only"><div><small>Research処理時間</small><strong>${present(performance.research_total_seconds) ? `${number(performance.research_total_seconds, 2)}秒` : 'N/A'}</strong></div><div><small>Workflowに占める割合</small><strong>${present(performance.research_share_pct) ? `${number(performance.research_share_pct, 2)}%` : 'N/A'}</strong></div><div><small>Control matching時間</small><strong>${present(performance.research_control_seconds) ? `${number(performance.research_control_seconds, 2)}秒` : 'N/A'}</strong></div><div><small>Research論理容量（旧推計）</small><strong>${bytes(storage.research_state_bytes)}</strong></div><div><small>Validation論理容量（旧推計）</small><strong>${bytes(storage.validation_state_bytes)}</strong></div><div><small>Research 180日・旧単日外挿</small><strong>${present(storage.projected_180d_size_mb) ? `${number(storage.projected_180d_size_mb, 2)} MiB` : 'N/A'}</strong></div><div><small>容量判定</small><strong>${valueText(status)}</strong></div></div></div></section>`;
   }
 
   function footerMarkup() {

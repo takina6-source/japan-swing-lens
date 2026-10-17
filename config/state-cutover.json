@@ -1,0 +1,9 @@
+{
+  "format": "jsl-cutover-approval-v1",
+  "approved": true,
+  "source_run_id": 38806096548,
+  "backup_release": "jsl-state-backup-run-38806096548",
+  "archive_sha256": "218f68d363f0ef214b59d2d73d3005ff97554d941c589542f310cb54e67c41a3",
+  "local_sha256_confirmed": "218f68d363f0ef214b59d2d73d3005ff97554d941c589542f310cb54e67c41a3",
+  "approved_for_merge_and_deploy": true
+}

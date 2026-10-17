@@ -1,0 +1,38 @@
+{
+  "accepted": true,
+  "run_id": 39024659114,
+  "code_commit": "a38b91531a661fbb8734fcbf3beb59353b8cae6b",
+  "artifact_id": 12101344487,
+  "artifact_sha256": "8340d26132c89a6c6b350f24b81b4905870850ec1ade7a26d7a896f96656053b",
+  "report_sha256": "8af167188d633994dbe8a18f805ce0497db69e983e11b392c4f0c10058c39235",
+  "cycles": 2,
+  "comparison": "exact parsed research/output values after declared volatile-field exclusion; no numeric rounding",
+  "excluded_volatile": [
+    "created_at",
+    "generated_at",
+    "research operational telemetry"
+  ],
+  "input_archive_sha256": "21df0c0a6774b847de42cf66bedb944044c560225b59590185246f1b175cba6f",
+  "fixed_input_market_day": "2026-10-15",
+  "future_market_days_simulated": false,
+  "cycles_detail": [
+    {
+      "iteration": 1,
+      "artifact_count": 1967,
+      "all_artifacts_equal": true,
+      "segment_rows": 50,
+      "full_segment_equal": true,
+      "legacy_worker_pid": 2646,
+      "gzip_worker_pid": 3268
+    },
+    {
+      "iteration": 2,
+      "artifact_count": 1967,
+      "all_artifacts_equal": true,
+      "segment_rows": 50,
+      "full_segment_equal": true,
+      "legacy_worker_pid": 2954,
+      "gzip_worker_pid": 3479
+    }
+  ]
+}

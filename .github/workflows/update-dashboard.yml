@@ -51,13 +51,15 @@ jobs:
         run: python -m pytest -q
       - name: Verify fixed-input regression
         run: python scripts/fixed_input_regression.py
+      - name: Verify lossless browser downloads
+        run: node tests/js/downloads.test.cjs
 
   analyze-and-publish:
     name: Analyze and publish
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # Immutable independent State backup Releases, scoped to this job.
       pages: write
       id-token: write
     environment:
@@ -81,10 +83,17 @@ jobs:
           key: simple-history-${{ runner.os }}-${{ github.run_id }}
           restore-keys: simple-history-${{ runner.os }}-
       - run: python -m pip install -e '.[jquants]'
+      - name: Select verified continuity authority (cutover locked until approved)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/state_release.py --output "${{ runner.temp }}/state-authority.json"
       - name: Analyze latest market data
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
+          STATE_AUTHORITY_FILE: ${{ runner.temp }}/state-authority.json
+          STATE_HISTORY_FILE: ${{ runner.temp }}/storage-history.json
+          STATE_ROOT_URL: https://takina6-source.github.io/japan-swing-lens
           VALIDATION_SEED_URL: https://takina6-source.github.io/japan-swing-lens/validation
           EXPERIMENTAL_SEED_URL: https://takina6-source.github.io/japan-swing-lens/experimental
           RESEARCH_SEED_URL: https://takina6-source.github.io/japan-swing-lens/research
@@ -116,13 +125,38 @@ jobs:
           COMMITTEE_SEED_URL: https://takina6-source.github.io/japan-swing-lens/committee
         run: python scripts/export_committee.py
       - run: touch public/dashboard/.nojekyll
+      - name: Stage verified compressed generation and physical storage metrics
+        run: |
+          mkdir -p "${{ runner.temp }}/continuity-release"
+          python scripts/finalize_state.py --source public/dashboard --target public/staged-dashboard --authority "${{ runner.temp }}/state-authority.json" --history "${{ runner.temp }}/storage-history.json" --run-id "${{ github.run_id }}" --commit "${{ github.sha }}" --ledger-output "${{ runner.temp }}/continuity-release/generation.json"
+          cp public/staged-dashboard/storage/history.json "${{ runner.temp }}/continuity-release/storage-history.json"
+          cp public/staged-dashboard/research/storage_metrics.json "${{ runner.temp }}/continuity-release/storage-metrics.json"
+          python scripts/state_backup.py create --pages public/staged-dashboard --archive "${{ runner.temp }}/continuity-release/state-backup.zip" --generation "github-actions-run-${{ github.run_id }}" --market-date "$(python -c "import json; print(json.load(open('public/staged-dashboard/data/snapshot.json'))['as_of'])")" > "${{ runner.temp }}/continuity-release/backup-manifest.json"
+      - name: Create immutable continuity Release before deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "jsl-state-generation-${{ github.run_id }}" --target "${{ github.sha }}" --title "JSL State generation ${{ github.run_id }}" --notes "Verified independent continuity backup. No asset overwrite. A failed Pages deployment requires reconciliation before the next update." --latest=false "${{ runner.temp }}"/continuity-release/*
+      - name: Re-download, checksum and restore before allowing deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "jsl-state-generation-${{ github.run_id }}" --dir "${{ runner.temp }}/independent-redownload"
+          cd "${{ runner.temp }}/independent-redownload"
+          sha256sum -c state-backup.zip.sha256
+          cd "$GITHUB_WORKSPACE"
+          cmp "${{ runner.temp }}/continuity-release/generation.json" "${{ runner.temp }}/independent-redownload/generation.json"
+          cmp "${{ runner.temp }}/continuity-release/storage-history.json" "${{ runner.temp }}/independent-redownload/storage-history.json"
+          cmp "${{ runner.temp }}/continuity-release/storage-metrics.json" "${{ runner.temp }}/independent-redownload/storage-metrics.json"
+          python scripts/state_backup.py restore --archive "${{ runner.temp }}/independent-redownload/state-backup.zip" --target "${{ runner.temp }}/independent-restored"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: public/dashboard
+          path: public/staged-dashboard
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify the deployed State generation and display files
+        run: python scripts/verify_state_publication.py --root-url https://takina6-source.github.io/japan-swing-lens --ledger "${{ runner.temp }}/continuity-release/generation.json"
 
   phase2a-production-shadow:
     name: Phase 2A production shadow (paused / manual only)

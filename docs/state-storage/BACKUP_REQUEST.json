@@ -1,0 +1,14 @@
+{
+  "repository": "takina6-source/japan-swing-lens",
+  "run_id": 38639189826,
+  "artifact_id": 11931417857,
+  "source_commit": "be9d1e565b90bc98b06019f78e5eb44a3a0a80ba",
+  "market_date": "2026-10-14",
+  "artifact_tar_sha256": "0b2e4c7019eb2f9b5c54fde66ac8bd113bddcbaa0b0ac74963cd3d7cecf0302a",
+  "state_sha256": {
+    "validation": "4c67b605b91d84047277f2708920ab17b4eae0682d83fb656d1df9213e055df9",
+    "experimental": "b98386273bd08bbd1fc961b0e07b973040b44c888904cf45fe3f52f8135ebbd2",
+    "research": "ac2be4d84b2a32fdb7a3b89b75b7626f22c088adacc67fc1618bb60773424200"
+  },
+  "purpose": "Phase 1 independent immutable backup only; no Pages deployment"
+}

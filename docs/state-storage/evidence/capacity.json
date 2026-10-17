@@ -1,0 +1,212 @@
+{
+  "source_run": 38639189826,
+  "commit": "be9d1e565b90bc98b06019f78e5eb44a3a0a80ba",
+  "artifact_id": 11931417857,
+  "artifact_tar_sha256": "0b2e4c7019eb2f9b5c54fde66ac8bd113bddcbaa0b0ac74963cd3d7cecf0302a",
+  "file_count": 2036,
+  "pages_before_bytes": 888039338,
+  "states_logical_bytes": 542527683,
+  "states_compressed_bytes": 54459423,
+  "pages_after_simulated_bytes": 399977048,
+  "manifest_overhead_bytes": 5970,
+  "state_reduction_pct": 89.96190891147576,
+  "pages_reduction_pct": 54.95953491195454,
+  "remaining_to_1gb_bytes_before": 111960662,
+  "remaining_after_bytes": 600022952,
+  "trends": {
+    "7": {
+      "start_run_date": "2026-10-08",
+      "end_run_date": "2026-10-15",
+      "calendar_days": 7,
+      "observations": 6,
+      "delta_bytes": 11454138,
+      "bytes_per_weekday_proxy": 2290827.6,
+      "weekdays": 5,
+      "confidence": "LOW: run-date Research logical estimate only; not Pages or compressed history"
+    },
+    "30": {
+      "start_run_date": "2026-09-15",
+      "end_run_date": "2026-10-15",
+      "calendar_days": 30,
+      "observations": 24,
+      "delta_bytes": 57557841,
+      "bytes_per_weekday_proxy": 2616265.5,
+      "weekdays": 22,
+      "confidence": "LOW: run-date Research logical estimate only; not Pages or compressed history"
+    }
+  },
+  "scenarios": [
+    {
+      "uncompressed_growth_mib_per_session_assumed": 2,
+      "state_growth_share_assumed": 0.5,
+      "compressed_growth_mib_per_session": 1.1003809108852423,
+      "uncompressed_sessions_to_1gb": 53.387003898620605,
+      "compressed_sessions_to_1gb": 520.0258137123728,
+      "compressed_after_70_sessions_mib": 458.4745015915568,
+      "compressed_after_180_sessions_mib": 579.5164017889334
+    },
+    {
+      "uncompressed_growth_mib_per_session_assumed": 2,
+      "state_growth_share_assumed": 1.0,
+      "compressed_growth_mib_per_session": 0.20076182177048466,
+      "uncompressed_sessions_to_1gb": 53.387003898620605,
+      "compressed_sessions_to_1gb": 2850.2753836874526,
+      "compressed_after_70_sessions_mib": 395.5011653535238,
+      "compressed_after_180_sessions_mib": 417.5849657482771
+    },
+    {
+      "uncompressed_growth_mib_per_session_assumed": 5,
+      "state_growth_share_assumed": 0.5,
+      "compressed_growth_mib_per_session": 2.7509522772131056,
+      "uncompressed_sessions_to_1gb": 21.35480155944824,
+      "compressed_sessions_to_1gb": 208.01032548494913,
+      "compressed_after_70_sessions_mib": 574.0144972345072,
+      "compressed_after_180_sessions_mib": 876.6192477279488
+    },
+    {
+      "uncompressed_growth_mib_per_session_assumed": 5,
+      "state_growth_share_assumed": 1.0,
+      "compressed_growth_mib_per_session": 0.5019045544262116,
+      "uncompressed_sessions_to_1gb": 21.35480155944824,
+      "compressed_sessions_to_1gb": 1140.1101534749812,
+      "compressed_after_70_sessions_mib": 416.58115663942465,
+      "compressed_after_180_sessions_mib": 471.79065762630796
+    },
+    {
+      "uncompressed_growth_mib_per_session_assumed": 10,
+      "state_growth_share_assumed": 0.5,
+      "compressed_growth_mib_per_session": 5.501904554426211,
+      "uncompressed_sessions_to_1gb": 10.67740077972412,
+      "compressed_sessions_to_1gb": 104.00516274247457,
+      "compressed_after_70_sessions_mib": 766.5811566394246,
+      "compressed_after_180_sessions_mib": 1371.7906576263078
+    },
+    {
+      "uncompressed_growth_mib_per_session_assumed": 10,
+      "state_growth_share_assumed": 1.0,
+      "compressed_growth_mib_per_session": 1.0038091088524232,
+      "uncompressed_sessions_to_1gb": 10.67740077972412,
+      "compressed_sessions_to_1gb": 570.0550767374906,
+      "compressed_after_70_sessions_mib": 451.71447544925945,
+      "compressed_after_180_sessions_mib": 562.1334774230261
+    }
+  ],
+  "top_files": [
+    {
+      "path": "experimental/state.json",
+      "bytes": 245438519
+    },
+    {
+      "path": "validation/state.json",
+      "bytes": 221104200
+    },
+    {
+      "path": "research/state.json",
+      "bytes": 75984964
+    },
+    {
+      "path": "experimental/control_performance.json",
+      "bytes": 47780817
+    },
+    {
+      "path": "validation/control_performance.json",
+      "bytes": 40746127
+    },
+    {
+      "path": "validation/controls.json",
+      "bytes": 29522119
+    },
+    {
+      "path": "experimental/controls.json",
+      "bytes": 25246614
+    },
+    {
+      "path": "validation/signal_history.json",
+      "bytes": 24160209
+    },
+    {
+      "path": "experimental/control_performance.csv",
+      "bytes": 15887121
+    },
+    {
+      "path": "experimental/history.json",
+      "bytes": 13977875
+    },
+    {
+      "path": "validation/control_performance.csv",
+      "bytes": 12770155
+    },
+    {
+      "path": "validation/controls.csv",
+      "bytes": 12658127
+    },
+    {
+      "path": "experimental/controls.csv",
+      "bytes": 11612253
+    },
+    {
+      "path": "validation/signal_history.csv",
+      "bytes": 8673193
+    },
+    {
+      "path": "validation/performance.json",
+      "bytes": 6885342
+    },
+    {
+      "path": "experimental/performance.json",
+      "bytes": 6506654
+    },
+    {
+      "path": "data/snapshot.json",
+      "bytes": 5384006
+    },
+    {
+      "path": "experimental/history.csv",
+      "bytes": 4956689
+    },
+    {
+      "path": "research/events.json",
+      "bytes": 3600658
+    },
+    {
+      "path": "validation/signals.json",
+      "bytes": 3195022
+    },
+    {
+      "path": "data/quarterly_diagnostics.json",
+      "bytes": 2788477
+    },
+    {
+      "path": "committee/history/index.json",
+      "bytes": 2490881
+    },
+    {
+      "path": "research/events.csv",
+      "bytes": 2277504
+    },
+    {
+      "path": "experimental/signals.json",
+      "bytes": 2031879
+    },
+    {
+      "path": "validation/performance.csv",
+      "bytes": 1767960
+    }
+  ],
+  "published_storage_metrics": {
+    "budget_status": "RED",
+    "compacted_rows": 2534,
+    "daily_growth_bytes": 5110495,
+    "history_bytes": 48759530,
+    "membership_bytes": 18374158,
+    "projected_180d_size_mb": 954.0544281005859,
+    "research_control_groups": 1274,
+    "research_control_history_rows": 124065,
+    "research_control_members": 17836,
+    "research_control_share_pct": 13.956609680747123,
+    "research_state_bytes": 80509476,
+    "rolling_30d_growth_mb": 146.21243476867676,
+    "validation_state_bytes": 496346063
+  },
+  "pages_growth_confidence": "UNAVAILABLE: only one frozen complete Pages snapshot; do not label telemetry as actual Pages growth"
+}

@@ -1,0 +1,5 @@
+Release archive re-download and restore: PASS
+Mac shasum -a 256 -c: OK
+validation: 221104200 bytes; SHA-256 4c67b605b91d84047277f2708920ab17b4eae0682d83fb656d1df9213e055df9; exact original match
+experimental: 245438519 bytes; SHA-256 b98386273bd08bbd1fc961b0e07b973040b44c888904cf45fe3f52f8135ebbd2; exact original match
+research: 75984964 bytes; SHA-256 ac2be4d84b2a32fdb7a3b89b75b7626f22c088adacc67fc1618bb60773424200; exact original match

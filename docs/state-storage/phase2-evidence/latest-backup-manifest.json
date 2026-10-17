@@ -1,0 +1,217 @@
+{
+  "backup_format": "jsl-state-backup-v1",
+  "generation": "github-actions-run-38806096548",
+  "market_date": "2026-10-15",
+  "captured_at": "2026-10-15T22:28:08.236707+00:00",
+  "streams": {
+    "validation": {
+      "file": "validation/state.json.gz",
+      "compressed_bytes": 21748478,
+      "compressed_sha256": "62c7565f4539af80a94ed59f85ed75fa94d2bd7154aa353074fe298276c92093",
+      "state": {
+        "kind": "validation",
+        "bytes": 229722407,
+        "sha256": "832eef5c5e5109d936f2f60055e3b145593ba565d6056d0a20617288b023f113",
+        "latest_record_date": "2026-10-15",
+        "versions": [
+          "app_version=2026.08-v4-observer",
+          "app_version=2026.08-v5-liquidity",
+          "app_version=2026.08-v6-control-observer",
+          "app_version=2026.09-v7-fundamental-fallback",
+          "app_version=2026.09-v8-quarterly-earnings",
+          "experimental_version=2026.09-exp-v1",
+          "experimental_version=2026.09-exp-v2-quarterly-earnings",
+          "schema_version=2.0",
+          "schema_version=2.1",
+          "schema_version=3.0",
+          "schema_version=3.1",
+          "selection_version=control-v1",
+          "strategy_version=pivot-consensus-v1",
+          "threshold_version=2026.08-v4",
+          "threshold_version=2026.08-v5",
+          "threshold_version=2026.08-v6-control"
+        ],
+        "tables": {
+          "signals": {
+            "count": 1467,
+            "ids_sha256": "4e819974504f492464397581989df31be8bf61d09c5fb439835c24ecda3aba3f",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "history": {
+            "count": 21900,
+            "ids_sha256": "badaad63fac82783599f02a6861d68facae38cbf0ac935d1fbb810fca48e3ffe",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "controls": {
+            "count": 33992,
+            "ids_sha256": "c4c676088ccfd10f130631ef6709fb655e275c2dd45ce48896373f665d740dd5",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "control_history": {
+            "count": 482587,
+            "ids_sha256": "7776519cd24610f8f944abb3869d29bfb841d23bddb82878c56e6ba2fd76e562",
+            "data_origin": {},
+            "evaluation_phase": {}
+          }
+        }
+      }
+    },
+    "experimental": {
+      "file": "experimental/state.json.gz",
+      "compressed_bytes": 25966274,
+      "compressed_sha256": "6f9c8053a3cf62fad1d14eb23ee9ef1b50867ebaec6a244b6fb3bee4994bc465",
+      "state": {
+        "kind": "experimental",
+        "bytes": 259855047,
+        "sha256": "c06fe262adcb52bb43c8839c477ca182d279b7d03ec396554d5076c1229a6412",
+        "latest_record_date": "2026-10-15",
+        "versions": [
+          "experimental_version=2026.09-exp-v1",
+          "experimental_version=2026.09-exp-v2-quarterly-earnings",
+          "schema_version=1.0",
+          "schema_version=2.0",
+          "schema_version=2.1",
+          "selection_version=experimental-control-v1"
+        ],
+        "tables": {
+          "signals": {
+            "count": 2210,
+            "ids_sha256": "f3a16e91cde579a9492da1a6de2e14ba9df536aaf0513bc0eb55ed2a7aba63dc",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "history": {
+            "count": 21942,
+            "ids_sha256": "3feeff29024ded719cdd985ed2335373c56a058567d3cb55510404cc4eb3cc77",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "controls": {
+            "count": 61880,
+            "ids_sha256": "a5cec9c11e073be6ae905e6c174f2151eede95836ec411cf24713982dfd68f2f",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "control_history": {
+            "count": 613545,
+            "ids_sha256": "d35505496aa5324ff9b50b811f75c5f841ca873f36c9e5e9843817ab6db38bd2",
+            "data_origin": {},
+            "evaluation_phase": {}
+          }
+        }
+      }
+    },
+    "research": {
+      "file": "research/state.json.gz",
+      "compressed_bytes": 9472479,
+      "compressed_sha256": "ab968ed152cf52c38466a806428482296b87a02446dd7a976f1f5ec0c7010630",
+      "state": {
+        "kind": "research",
+        "bytes": 78995786,
+        "sha256": "2cb5f85866f975bee2624110678c9e7f0f5ee6b21436491ec7f3dc85d2c32a15",
+        "latest_record_date": "2026-10-15",
+        "versions": [
+          "family_version=1",
+          "hypothesis_version=H1-v1",
+          "hypothesis_version=H2-v1",
+          "hypothesis_version=H3-v1",
+          "hypothesis_version=H4-v1",
+          "research_version=2026.09-research-v1",
+          "schema_version=2.0",
+          "schema_version=2.1",
+          "schema_version=3.0",
+          "schema_version=3.1",
+          "selection_version=research-control-v1",
+          "strategy_version=pivot-consensus-v1",
+          "threshold_version=2026.08-v4",
+          "threshold_version=2026.08-v5",
+          "threshold_version=2026.08-v6-control"
+        ],
+        "tables": {
+          "hypotheses": {
+            "count": 4,
+            "ids_sha256": "e56b8f5884e836eb7b6cd3785a58c8218abcf4a906e9ffebcba836faad772b4e",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "families": {
+            "count": 1,
+            "ids_sha256": "7830fd6918343f7f40e81751d29395d34e0b540ca0bb16a37743171c6bedadfc",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "research_events": {
+            "count": 4277,
+            "ids_sha256": "97a7ae1ac708c3051bef901941c933a1c12092687bed84b0445db211703f58ec",
+            "data_origin": {
+              "RECONSTRUCTED_LEGACY": 1480,
+              "NOT_ELIGIBLE": 13,
+              "LIVE_FORWARD": 2784
+            },
+            "evaluation_phase": {
+              "DISCOVERY": 1561,
+              "HOLDOUT": 2716
+            }
+          },
+          "validation_subjects": {
+            "count": 3388,
+            "ids_sha256": "214146cb916c0c911d4d022efc714c85d1681529553a95afd9c2b403b63238fc",
+            "data_origin": {
+              "RECONSTRUCTED_LEGACY": 1364,
+              "LIVE_FORWARD": 2024
+            },
+            "evaluation_phase": {
+              "DISCOVERY": 1422,
+              "HOLDOUT": 1966
+            }
+          },
+          "research_control_members": {
+            "count": 18004,
+            "ids_sha256": "efc9346bbb1606c47057e5393f87807d85c7766e479310018147a7eb1c8a4ac8",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "research_control_history": {
+            "count": 130666,
+            "ids_sha256": "abfcaf258071abbefb8361c7849d84ce0301585475e94e51d412ae46c8a1f0ac",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "research_subject_history": {
+            "count": 15253,
+            "ids_sha256": "0cc2fdb66c817b258119c9cc51de362be2f3a75311c8e40adb16bc0b542d6c5a",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "research_checkpoint_evaluations": {
+            "count": 1,
+            "ids_sha256": "3bcd9966bdf2dc079bc7d5c096f6e2cfdd53b6800f9211aeca60b4d2fcaf4b78",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "research_results": {
+            "count": 0,
+            "ids_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "research_family_results": {
+            "count": 0,
+            "ids_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "data_origin": {},
+            "evaluation_phase": {}
+          },
+          "research_telemetry": {
+            "count": 29,
+            "ids_sha256": "523630fe7e3bb006cdf04e12e840ead5c1745f98ac35fa85dff191928bf41bad",
+            "data_origin": {},
+            "evaluation_phase": {}
+          }
+        }
+      }
+    }
+  }
+}

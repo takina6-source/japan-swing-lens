@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-import requests
+from .state_io import import_seed, load_remote
 
 from .database import Database
 from .liquidity import liquidity_level
@@ -25,17 +25,9 @@ SLUG = {"Minervini": "minervini", "Qullamaggie": "qullamaggie",
 def seed_validation(db: Database, base_url: str | None) -> bool:
     if not base_url:
         return False
-    try:
-        response = requests.get(base_url.rstrip("/") + "/state.json", timeout=30)
-        if response.status_code != 200:
-            return False
-        payload = response.json()
-        db.import_validation_rows(payload.get("signals", []), payload.get("history", []),
-                                  payload.get("controls", []),
-                                  payload.get("control_history", []))
-        return True
-    except Exception:
-        return False
+    payload = load_remote(base_url, "validation")
+    import_seed(db, payload, "validation")
+    return True
 
 
 def export_validation(db: Database, output: Path, cfg: dict,

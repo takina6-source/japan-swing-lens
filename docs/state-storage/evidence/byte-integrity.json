@@ -1,0 +1,156 @@
+{
+  "validation": {
+    "source_sha256": "4c67b605b91d84047277f2708920ab17b4eae0682d83fb656d1df9213e055df9",
+    "decompressed_sha256": "4c67b605b91d84047277f2708920ab17b4eae0682d83fb656d1df9213e055df9",
+    "source_bytes": 221104200,
+    "decompressed_bytes": 221104200,
+    "counts_and_ids_match": true,
+    "tables": {
+      "signals": {
+        "count": 1432,
+        "ids_sha256": "ea02c3d32c5f3367e1d8af64cc2a2bd6b98a82ccbeaaf15bd55e6c0cff9ee6e0",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "history": {
+        "count": 21215,
+        "ids_sha256": "7e9231c8df431778e6b34b7a62ebb4d1ecdc88681ac3c5d564d53138ab710800",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "controls": {
+        "count": 33012,
+        "ids_sha256": "3681331e415439a750d472357369958ea976fbd5077529a20f9fc60ba43c47d1",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "control_history": {
+        "count": 463304,
+        "ids_sha256": "87c2ba1fc4fd25523424a75e1ee7236f80c7ddc0ef73e8dbe20345fd9adf9305",
+        "data_origin": {},
+        "evaluation_phase": {}
+      }
+    }
+  },
+  "experimental": {
+    "source_sha256": "b98386273bd08bbd1fc961b0e07b973040b44c888904cf45fe3f52f8135ebbd2",
+    "decompressed_sha256": "b98386273bd08bbd1fc961b0e07b973040b44c888904cf45fe3f52f8135ebbd2",
+    "source_bytes": 245438519,
+    "decompressed_bytes": 245438519,
+    "counts_and_ids_match": true,
+    "tables": {
+      "signals": {
+        "count": 2156,
+        "ids_sha256": "69368ce027b7047e44e012a36e116c9ff5c8159c9f5f431bfaa1e661e45bff25",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "history": {
+        "count": 20647,
+        "ids_sha256": "e928c32c5700060c8a012ad785a481f2420046937b14cd0849b5510124a1e9bd",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "controls": {
+        "count": 60368,
+        "ids_sha256": "d2245d9c9475f052d1a57ef9c196978155f86928f577bf397407103d757e1b29",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "control_history": {
+        "count": 577306,
+        "ids_sha256": "106b7842b698fbae88f36ae797137bdd49e2ff63d07e0e352ce2cebc25890fe8",
+        "data_origin": {},
+        "evaluation_phase": {}
+      }
+    }
+  },
+  "research": {
+    "source_sha256": "ac2be4d84b2a32fdb7a3b89b75b7626f22c088adacc67fc1618bb60773424200",
+    "decompressed_sha256": "ac2be4d84b2a32fdb7a3b89b75b7626f22c088adacc67fc1618bb60773424200",
+    "source_bytes": 75984964,
+    "decompressed_bytes": 75984964,
+    "counts_and_ids_match": true,
+    "tables": {
+      "hypotheses": {
+        "count": 4,
+        "ids_sha256": "e56b8f5884e836eb7b6cd3785a58c8218abcf4a906e9ffebcba836faad772b4e",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "families": {
+        "count": 1,
+        "ids_sha256": "7830fd6918343f7f40e81751d29395d34e0b540ca0bb16a37743171c6bedadfc",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "research_events": {
+        "count": 4195,
+        "ids_sha256": "faddf0e3e43e1d9fe5b2ff90947f356aa639d65eafa36387fe541aa87d75c487",
+        "data_origin": {
+          "RECONSTRUCTED_LEGACY": 1480,
+          "NOT_ELIGIBLE": 13,
+          "LIVE_FORWARD": 2702
+        },
+        "evaluation_phase": {
+          "DISCOVERY": 1561,
+          "HOLDOUT": 2634
+        }
+      },
+      "validation_subjects": {
+        "count": 3325,
+        "ids_sha256": "2cd1beecb1dfc61cfda53133ab391b2b212fdfc708503b1681e8a0bb1a3b35a0",
+        "data_origin": {
+          "RECONSTRUCTED_LEGACY": 1364,
+          "LIVE_FORWARD": 1961
+        },
+        "evaluation_phase": {
+          "DISCOVERY": 1422,
+          "HOLDOUT": 1903
+        }
+      },
+      "research_control_members": {
+        "count": 17836,
+        "ids_sha256": "5aeeeabc23a2c18a5bec72fff7e0b833526172dcf162eb003bf0509cf3b34f7a",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "research_control_history": {
+        "count": 124065,
+        "ids_sha256": "71741d0238e5d5b445d181dfc28263fe958b2cbfcb1dc2b5b33ff40407bb3d19",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "research_subject_history": {
+        "count": 14469,
+        "ids_sha256": "e112fc8bd567330337e0c61990d11c47b26c2fefe30822d27d79f69f4ce00fd0",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "research_checkpoint_evaluations": {
+        "count": 1,
+        "ids_sha256": "3bcd9966bdf2dc079bc7d5c096f6e2cfdd53b6800f9211aeca60b4d2fcaf4b78",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "research_results": {
+        "count": 0,
+        "ids_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "research_family_results": {
+        "count": 0,
+        "ids_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "data_origin": {},
+        "evaluation_phase": {}
+      },
+      "research_telemetry": {
+        "count": 28,
+        "ids_sha256": "0f3f05574b17c5688c03bc238e3a2378ba7c81329ae253d7f6f55c40a83985ed",
+        "data_origin": {},
+        "evaluation_phase": {}
+      }
+    }
+  }
+}

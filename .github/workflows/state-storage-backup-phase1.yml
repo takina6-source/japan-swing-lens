@@ -1,0 +1,80 @@
+name: State storage Phase 1 independent backup
+
+on:
+  push:
+    branches: [codex/state-storage-phase1]
+    paths: [docs/state-storage/BACKUP_REQUEST.json]
+
+permissions: {}
+
+concurrency:
+  group: jsl-state-backup-phase1
+  cancel-in-progress: false
+
+jobs:
+  independent-backup:
+    if: github.repository == 'takina6-source/japan-swing-lens' && github.ref == 'refs/heads/codex/state-storage-phase1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[test]'
+      - name: Download the frozen existing Pages artifact (read only)
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: takina6-source/japan-swing-lens
+          run-id: 38639189826
+          artifact-ids: 11931417857
+          path: ${{ runner.temp }}/jsl-source
+          merge-multiple: true
+      - name: Verify source artifact and State generation
+        env:
+          SOURCE_DIR: ${{ runner.temp }}/jsl-source
+          PAGES_DIR: ${{ runner.temp }}/jsl-pages
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,tarfile
+          from pathlib import Path
+          request=json.loads(Path('docs/state-storage/BACKUP_REQUEST.json').read_text())
+          source=Path(os.environ['SOURCE_DIR'])/'artifact.tar'
+          assert hashlib.sha256(source.read_bytes()).hexdigest()==request['artifact_tar_sha256']
+          pages=Path(os.environ['PAGES_DIR'])
+          with tarfile.open(source) as bundle:
+              bundle.extractall(pages, filter='data')
+          assert json.loads((pages/'data/snapshot.json').read_bytes())['as_of']==request['market_date']
+          for kind,expected in request['state_sha256'].items():
+              assert hashlib.sha256((pages/kind/'state.json').read_bytes()).hexdigest()==expected
+          print('Frozen artifact and all three original SHA-256 values verified')
+          PY
+      - name: Create and restore the independent backup offline
+        env:
+          PAGES_DIR: ${{ runner.temp }}/jsl-pages
+          RELEASE_DIR: ${{ runner.temp }}/jsl-release
+        run: |
+          mkdir -p "$RELEASE_DIR"
+          python scripts/state_backup.py create --pages "$PAGES_DIR" --archive "$RELEASE_DIR/jsl-state-backup-run-38639189826.zip" --generation github-actions-run-38639189826 --market-date 2026-10-14 > "$RELEASE_DIR/backup-manifest.json"
+          python scripts/state_backup.py restore --archive "$RELEASE_DIR/jsl-state-backup-run-38639189826.zip" --target "${{ runner.temp }}/jsl-restored" > "$RELEASE_DIR/restore-verification.json"
+      - name: Create a separate immutable backup Release (never overwrite assets)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_DIR: ${{ runner.temp }}/jsl-release
+        run: |
+          gh release create jsl-state-backup-run-38639189826 --target be9d1e565b90bc98b06019f78e5eb44a3a0a80ba --title "JSL continuity backup: run 38639189826" --notes "Validation, Experimental and Research original State bytes for market day 2026-10-14. Phase 1 backup only. Separate from Phase 2A; no Pages deployment. Verify the SHA-256 sidecar and manifest before restore." --latest=false "$RELEASE_DIR"/*
+      - name: Re-download Release assets and verify independent restoration
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOWNLOAD_DIR: ${{ runner.temp }}/jsl-redownload
+        run: |
+          mkdir -p "$DOWNLOAD_DIR"
+          gh release download jsl-state-backup-run-38639189826 --dir "$DOWNLOAD_DIR"
+          cd "$DOWNLOAD_DIR"
+          sha256sum -c jsl-state-backup-run-38639189826.zip.sha256
+          cd "$GITHUB_WORKSPACE"
+          python scripts/state_backup.py restore --archive "$DOWNLOAD_DIR/jsl-state-backup-run-38639189826.zip" --target "${{ runner.temp }}/jsl-release-restored"

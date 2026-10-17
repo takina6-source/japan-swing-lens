@@ -56,7 +56,7 @@ def test_phase2a_permissions_are_job_scoped_and_publication_is_independent():
     jobs = workflow["jobs"]
     assert workflow["permissions"] == {}
     assert jobs["analyze-and-publish"]["permissions"] == {
-        "contents": "read", "pages": "write", "id-token": "write"
+        "contents": "write", "pages": "write", "id-token": "write"
     }
     shadow = jobs["phase2a-production-shadow"]
     assert shadow["permissions"] == {"contents": "write", "actions": "read"}
@@ -114,3 +114,38 @@ def test_phase2a_uses_immutable_release_assets_without_latest_pointer():
     assert "phase2a_release_seed.py extract" in rendered
     assert "latest pointer" not in rendered.lower()
     assert "--clobber" not in rendered
+
+
+def test_state_publication_requires_backup_then_reverification_then_deployment():
+    steps=_workflow()['jobs']['analyze-and-publish']['steps']
+    select=next(i for i,s in enumerate(steps) if 'scripts/state_release.py' in s.get('run',''))
+    analyze=next(i for i,s in enumerate(steps) if 'scripts/export_web.py --refresh' in s.get('run',''))
+    stage=next(i for i,s in enumerate(steps) if 'scripts/finalize_state.py' in s.get('run',''))
+    backup=next(i for i,s in enumerate(steps) if s.get('name')=='Create immutable continuity Release before deployment')
+    restore=next(i for i,s in enumerate(steps) if s.get('name')=='Re-download, checksum and restore before allowing deployment')
+    deploy=next(i for i,s in enumerate(steps) if s.get('uses','').startswith('actions/deploy-pages'))
+    verify=next(i for i,s in enumerate(steps) if 'scripts/verify_state_publication.py' in s.get('run',''))
+    assert select<analyze<stage<backup<restore<deploy<verify
+    upload=next(s for s in steps if s.get('uses','').startswith('actions/upload-pages-artifact'))
+    assert upload['with']['path']=='public/staged-dashboard'
+    assert '--clobber' not in steps[backup]['run']
+
+
+def test_phase2_dry_run_is_separate_read_only_and_never_saves_production_cache():
+    path=WORKFLOW.with_name('state-storage-phase2.yml')
+    workflow=yaml.load(path.read_text(),Loader=yaml.BaseLoader)
+    assert workflow['permissions']=={}
+    assert workflow['on']['push']['branches']==['codex/state-storage-phase2']
+    for job in workflow['jobs'].values():
+        assert 'environment' not in job
+        assert all(v=='read' for v in job['permissions'].values())
+        for step in job['steps']:
+            action=step.get('uses','')
+            assert not any(x in action for x in ('deploy-pages','configure-pages','upload-pages-artifact','cache/save'))
+            assert action!='actions/cache@v4'
+            import re
+            assert set(re.findall(r'gh release ([a-z-]+)',step.get('run',''))) <= {'download'}
+    private=workflow['jobs']['private-continuation']
+    assert private['if']=="github.event_name == 'push'"
+    cache=next(s for s in private['steps'] if s.get('uses','').startswith('actions/cache/restore'))
+    assert cache['with']['fail-on-cache-miss']=='true'

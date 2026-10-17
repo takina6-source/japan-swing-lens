@@ -1,0 +1,71 @@
+{
+  "mode": "legacy",
+  "artifacts": {
+    "validation/control_performance.json": "53d7a88aff63f4fd63af949562818ad6393a1bfe80b11b6e74350818e5ae78be",
+    "validation/controls.json": "ffb6f80c34ad7967ce05e790d55801dedd60c93308df5f7f6a4be9bc13d1e23d",
+    "validation/corporate_action_diagnostics.json": "49f00599692364c065c859189df83863baaae1ec48fa5504765698eaa22ba8bb",
+    "validation/fundamental_diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "validation/index.json": "6e696df0e018d20a456d7020cfede958d97fa42f17bd4ce7d728c46745c5359a",
+    "validation/performance.json": "18ad0956a70282e9a2c99943fec0c9ffc205e5164ab0829cde2199bee9cd5eef",
+    "validation/signal_history.json": "d4e28a1672a7e8b9e4abf5dbff28360c7ec08e9d54d006538a8b8e8c2fbea772",
+    "validation/signals.json": "64f87159c1cca026a85cf890fe7e824441bedbe127d797353fb94699595ffb75",
+    "validation/state.json": "b164dad35dab804dd4cc2c76178c7e27a51a076f4ca41cc02f4703b222442801",
+    "validation/summary.json": "e911b08028979d69808e5485c8ff3cebdfc73cab6aa5ee997ab4276622d55506",
+    "experimental/control_performance.json": "928eb0a844f36dc4daccbaca054aef3822576a2fd5b80afd5c5977fe357ec626",
+    "experimental/controls.json": "fd18a0c73d788a4043fe4ae48f518479932bf4a97a140f2e52f8a708831d14e4",
+    "experimental/history.json": "835eb590f6ba159eaad3fbee52101504748e4f800fa492005c26fa231eff994f",
+    "experimental/index.json": "208b795bb9f964d71fa0db77c00d05bae20a2589c05882bb20675c7fa43a252e",
+    "experimental/performance.json": "72c32de4d1c5ccb2d5115fba93bdc9cb35a1f1771d2d3e6f7ba97adf1b8d9e59",
+    "experimental/signals.json": "8796acc900a155f095b7823a9e67a2ca26e9388c6dc8748450b7004cca4d7df7",
+    "experimental/state.json": "bde9a5318ec3e043471e4de1b77c86580b8632dbe3fc9eb15189bc05c3c2436a",
+    "experimental/summary.json": "eaedf4147cc203e7c2c5a3de4d23bac02ee4191de6cdd1faa1bad5218bc480b8",
+    "research/checkpoints.json": "a0743b9bf04beade1b1c0406709ed0589c031dd564a53141e838096a5583dd52",
+    "research/corporate_action_diagnostics.json": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "research/events.json": "012b102b35f296591f43674b63a975d188e8df4a298c3070b0a7e985de8c635f",
+    "research/families.json": "1572f6ac2661fead37dba5feebfdc63d7b5ded2d5eadd58a127fc1e122d86fb2",
+    "research/hypotheses.json": "c1b0d631929912729c5950bdce9bc6ba7845896ee975a4e9334c809aa3b3661d",
+    "research/index.json": "36a95a1669354a9361d7ec952395370502a4992768107b377be0da8e572d2d7b",
+    "research/intraday_diagnostics.json": "1a58399f749afdf49a3b4dd664dd28003a86eacffbbe59dc4733f8157c534741",
+    "research/performance.json": "645fb8bf988fea51b7862a7c6f2c164520c19dbe6ed52e768dc487fd7166e71d",
+    "research/performance_metrics.json": "bc0f87371443adb492093bcd2f283b416e68024b44d7230ee8a2301b5fab45de",
+    "research/state.json": "2f20e8ca09508653a61630282b6fb6e3f93462c44fabaf33703206b024e8607e",
+    "research/storage_metrics.json": "95776c5ac055bfc4841bbcb02c24fbf5998e3f5d61833fd6c070aa992a4eff4d"
+  },
+  "segment": {
+    "ALL": {
+      "n": 48,
+      "t5_mean_pct": 3.239888288675148,
+      "matched_n": 48,
+      "matched_excess_pct": 1.759319932092566,
+      "ids_sha256": "a02a792d3ee52edcbfea208354a8269d9aafe2e6c10512cf952583d3d785ac4c"
+    },
+    "BREAKOUT WATCH": {
+      "n": 37,
+      "t5_mean_pct": 2.5008925637235366,
+      "matched_n": 37,
+      "matched_excess_pct": 1.073729336514306,
+      "ids_sha256": "c7445c0687aae00da9398852d0bc135101da1013cde48b3945aa52be60cb7e6f"
+    },
+    "BREAKOUT": {
+      "n": 11,
+      "t5_mean_pct": 5.725601181694202,
+      "matched_n": 11,
+      "matched_excess_pct": 4.065397389946713,
+      "ids_sha256": "2703af80ef69a4012419668ba2a132e7be955fa085d8eeae9c5a03d592e4b604"
+    }
+  },
+  "research": {
+    "hypotheses": {
+      "H1-v1": "7fa5ed2855549638e26bf72eb860c5647eda48a7a0ebeff3db6e2b7c4ad0957d",
+      "H2-v1": "1cb1bde817530682d2a81e8c85ac20a13ea91f58514a020cb7fdd4ba0848fccf",
+      "H3-v1": "b8b319f4df1c3d3af24ebe471e759e53606d1a39c76562b208a23e1a017162ed",
+      "H4-v1": "b68e4b413f8c2f69f7c8defe77068e6b6e81a51509a8c7587fdb19f2e14a5d6e"
+    },
+    "live_forward_events": 2702,
+    "formal_holdout_events": 2634,
+    "live_forward_subjects": 1961,
+    "formal_holdout_subjects": 1903
+  },
+  "engine_module_sha256": "0874727e514a954086e0b33e72bbf3c0124bded31a19e2ebb8fa3c3ee7c6643d",
+  "checkout": "base be9d1e565b90bc98b06019f78e5eb44a3a0a80ba"
+}
