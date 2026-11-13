@@ -1,0 +1,56 @@
+name: Verify research cache recovery
+
+on:
+  pull_request:
+    paths:
+      - 'engine/state_io.py'
+      - 'engine/state_generation.py'
+      - 'engine/research/storage.py'
+      - '.github/workflows/verify-research-recovery.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  restore-current-generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[jquants,test]'
+      - name: Restore production cache without saving any changes
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: swing-data-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: swing-data-${{ runner.os }}-
+          fail-on-cache-miss: true
+      - name: Select independent continuity authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/state_release.py --output "${{ runner.temp }}/authority.json"
+      - name: Verify recovery with the actual cached database and public State
+        env:
+          RECOVERY_TEMP: ${{ runner.temp }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from engine.database import Database
+          from engine.state_generation import restore_generation
+          from engine.research.storage import ResearchStore
+          temp = Path(os.environ['RECOVERY_TEMP'])
+          authority = json.loads((temp / 'authority.json').read_bytes())
+          db = Database(Path('data/momentum.db'))
+          restore_generation(db, 'https://takina6-source.github.io/japan-swing-lens',
+                             authority, temp / 'history.json')
+          actual = len(ResearchStore(db).rows('research_control_history'))
+          expected = authority['generation']['streams']['research']['tables']['research_control_history']['count']
+          assert actual == expected, (actual, expected)
+          print('All three streams restored with checksums and cache continuity checks;',
+                authority['generation']['generation_id'], 'research history rows:', actual)
+          PY
