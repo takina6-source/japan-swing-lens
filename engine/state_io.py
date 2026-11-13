@@ -236,7 +236,31 @@ def load_remote(base_url, kind):
     return value
 
 
-def guard_cached_state(db, value, kind):
+def _compacted_research_ids(cached, incoming):
+    """Recognize only the existing, completed 20-session compaction policy."""
+    from .research.storage import RESEARCH_HISTORY_HORIZONS
+
+    keys = RESEARCH_KEYS['research_control_history']
+    missing = identities(cached, keys) - identities(incoming, keys)
+    # Compaction is group-wide. A retained, matured day-20 observation is the
+    # evidence that the group completed; missing fixed horizons are never OK.
+    completed = {}
+    for row in incoming:
+        if row.get('session_offset') == 20 and row.get('matured') == 1:
+            group = row['control_group_id']
+            completed[group] = max(completed.get(group, ''), row['date'])
+    allowed = set()
+    for row in cached:
+        identity = tuple(row[key] for key in keys)
+        offset = row.get('session_offset')
+        if (identity in missing and isinstance(offset, int) and 0 <= offset < 20
+                and offset not in RESEARCH_HISTORY_HORIZONS
+                and row['date'] <= completed.get(row['control_group_id'], '')):
+            allowed.add(identity)
+    return allowed
+
+
+def guard_cached_state(db, value, kind, *, allow_research_compaction=False):
     """Legacy has no signed generation authority. Cache provides a conservative floor.
 
     A cache miss cannot prove freshness; pin a verified manifest in Phase 2.
@@ -252,12 +276,18 @@ def guard_cached_state(db, value, kind):
         store = ResearchStore(db)
         old = {key: store.rows({'hypotheses': 'research_hypotheses',
                                 'families': 'research_families'}.get(key, key)) for key in RESEARCH_KEYS}
+    compacted = set()
     for table, keys in keys_for(kind).items():
-        if not identities(old[table], keys) <= identities(value[table], keys):
+        missing = identities(old[table], keys) - identities(value[table], keys)
+        if missing and allow_research_compaction and kind == 'research' and table == 'research_control_history':
+            compacted = _compacted_research_ids(old[table], value[table])
+            missing -= compacted
+        if missing:
             raise StateError(f'{kind}/{table}: missing cached IDs or rollback; explicit recovery required')
+    return compacted
 
 
-def import_seed(db, value, kind):
+def import_seed(db, value, kind, *, allow_research_compaction=False):
     """Import the verified generation atomically, including all continuity tables."""
     from contextlib import contextmanager
     from .database import Database
@@ -266,7 +296,8 @@ def import_seed(db, value, kind):
     # Schema initialization uses executescript (which commits); do it before BEGIN.
     if kind == 'research':
         ResearchStore(db)
-    guard_cached_state(db, value, kind)
+    compacted = guard_cached_state(db, value, kind,
+                                  allow_research_compaction=allow_research_compaction)
     with db.connect() as connection:
         class SeedDatabase(Database):
             def __init__(self):
@@ -284,6 +315,10 @@ def import_seed(db, value, kind):
         connection.execute('BEGIN IMMEDIATE')
         try:
             if kind == 'research':
+                # Do not resurrect legitimately compacted observations through
+                # the additive import. This deletion rolls back with the import.
+                connection.executemany('DELETE FROM research_control_history WHERE '
+                                       'control_group_id=? AND control_code=? AND date=?', compacted)
                 # Avoid running ResearchStore.__init__ inside the transaction.
                 store = ResearchStore.__new__(ResearchStore)
                 store.db = target

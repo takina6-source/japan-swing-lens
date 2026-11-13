@@ -5,6 +5,8 @@ from typing import Any
 
 from ..database import Database
 
+RESEARCH_HISTORY_HORIZONS = (1, 5, 10, 20)
+
 
 class ResearchStore:
     """Research-only persistence; immutable assets never update Core tables."""
@@ -207,7 +209,7 @@ class ResearchStore:
         _insert_dict_rows(self.db, "research_telemetry",
                           [{**row, "payload_json": _json(row)}], replace=True)
 
-    def compact_matured_history(self, horizons: tuple[int, ...] = (1, 5, 10, 20)) -> int:
+    def compact_matured_history(self, horizons: tuple[int, ...] = RESEARCH_HISTORY_HORIZONS) -> int:
         keep = ",".join("?" for _ in horizons)
         with self.db.connect() as con:
             groups = [row[0] for row in con.execute("""SELECT control_group_id

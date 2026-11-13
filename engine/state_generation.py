@@ -140,7 +140,8 @@ def restore_generation(db, root_url: str, authority: dict, history_path: Path):
             raise StateError('generation changed during restore')
     # No stream is imported until all three transports and checksums succeed.
     for kind in KINDS:
-        import_seed(db, values[kind], kind)
+        import_seed(db, values[kind], kind,
+                    allow_research_compaction=authority.get('kind') == 'compressed')
     history_path.parent.mkdir(parents=True, exist_ok=True)
     history_path.write_bytes(json_bytes(history))
     history_path.with_name('continuity-floor.json').write_bytes(json_bytes(continuity_floor(values)))

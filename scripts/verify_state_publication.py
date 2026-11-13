@@ -50,12 +50,16 @@ def main():
     parser.add_argument('--ledger',type=Path,required=True)
     args=parser.parse_args()
     ledger=json.loads(args.ledger.read_bytes())
-    for attempt in range(8):
+    # Pages/CDN propagation can exceed the old two-minute window. Keep every
+    # checksum/generation check, but allow up to ten minutes for convergence.
+    attempts = 40
+    for attempt in range(attempts):
         try:
             verify(args.root_url.rstrip('/'),ledger)
             return
-        except StateError:
-            if attempt==7: raise
+        except StateError as exc:
+            if attempt == attempts - 1: raise
+            print(f'Publication not yet verified ({attempt + 1}/{attempts}): {exc}', flush=True)
             time.sleep(15)
 
 
