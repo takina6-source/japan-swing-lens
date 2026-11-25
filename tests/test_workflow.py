@@ -13,7 +13,8 @@ def _workflow() -> dict:
 
 def test_publish_job_requires_the_test_job():
     jobs = _workflow()["jobs"]
-    assert jobs["analyze-and-publish"]["needs"] == "test"
+    assert "test" in jobs["analyze-and-publish"]["needs"]
+    assert jobs["recover-pending-publication"]["needs"] == "test"
     assert "actions/deploy-pages" not in str(jobs["test"])
 
 
@@ -30,7 +31,8 @@ def test_actions_runs_the_full_pytest_suite_before_analysis():
 
 def test_publish_waits_for_fixed_input_regression_gate():
     jobs = _workflow()["jobs"]
-    assert jobs["analyze-and-publish"]["needs"] == "test"
+    assert "test" in jobs["analyze-and-publish"]["needs"]
+    assert jobs["recover-pending-publication"]["needs"] == "test"
     regression = next(step for step in jobs["test"]["steps"]
                       if step.get("name") == "Verify fixed-input regression")
     assert regression["run"] == "python scripts/fixed_input_regression.py"
@@ -56,11 +58,17 @@ def test_phase2a_permissions_are_job_scoped_and_publication_is_independent():
     jobs = workflow["jobs"]
     assert workflow["permissions"] == {}
     assert jobs["analyze-and-publish"]["permissions"] == {
+        "actions": "read",
         "contents": "write", "pages": "write", "id-token": "write"
     }
     shadow = jobs["phase2a-production-shadow"]
     assert shadow["permissions"] == {"contents": "write", "actions": "read"}
-    assert jobs["analyze-and-publish"]["needs"] == "test"
+    assert "test" in jobs["analyze-and-publish"]["needs"]
+    recovery = jobs["recover-pending-publication"]
+    assert recovery["permissions"] == {
+        "contents": "read", "actions": "read", "pages": "write", "id-token": "write"
+    }
+    assert "phase2a-production-shadow" not in str(recovery)
     assert shadow["needs"] == "analyze-and-publish"
     assert "phase2a-production-shadow" not in str(jobs["analyze-and-publish"])
 
