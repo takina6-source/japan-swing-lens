@@ -131,7 +131,7 @@ def test_state_publication_requires_backup_then_reverification_then_deployment()
     stage=next(i for i,s in enumerate(steps) if 'scripts/finalize_state.py' in s.get('run',''))
     backup=next(i for i,s in enumerate(steps) if s.get('name')=='Create immutable continuity Release before deployment')
     restore=next(i for i,s in enumerate(steps) if s.get('name')=='Re-download, checksum and restore before allowing deployment')
-    deploy=next(i for i,s in enumerate(steps) if s.get('uses','').startswith('actions/deploy-pages'))
+    deploy=next(i for i,s in enumerate(steps) if s.get('name') == 'Publish')
     verify=next(i for i,s in enumerate(steps) if 'scripts/verify_state_publication.py' in s.get('run',''))
     assert select<analyze<stage<backup<restore<deploy<verify
     upload=next(s for s in steps if s.get('uses','').startswith('actions/upload-pages-artifact'))

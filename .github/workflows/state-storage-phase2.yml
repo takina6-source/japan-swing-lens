@@ -23,6 +23,7 @@ jobs:
       - run: python -m pytest -q
       - run: python scripts/fixed_input_regression.py
       - run: node tests/js/downloads.test.cjs
+      - run: node --test tests/js/pages-deploy.test.cjs
 
   private-continuation:
     if: github.event_name == 'push'

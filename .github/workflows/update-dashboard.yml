@@ -53,6 +53,8 @@ jobs:
         run: python scripts/fixed_input_regression.py
       - name: Verify lossless browser downloads
         run: node tests/js/downloads.test.cjs
+      - name: Verify REST Pages publication
+        run: node --test tests/js/pages-deploy.test.cjs
 
   recover-pending-publication:
     name: Recover verified pending publication
@@ -94,14 +96,16 @@ jobs:
         if: steps.recovery.outputs.pending == 'true'
         id: recover_deploy
         continue-on-error: true
-        uses: actions/deploy-pages@v4
+        uses: actions/github-script@v7
         with:
-          artifact_name: github-pages-recovery
+          script: |
+            await require('./scripts/deploy_pages.cjs')({github, core, context, artifactName: 'github-pages-recovery'});
       - name: Retry recovered generation deployment
         if: steps.recover_deploy.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+        uses: actions/github-script@v7
         with:
-          artifact_name: github-pages-recovery
+          script: |
+            await require('./scripts/deploy_pages.cjs')({github, core, context, artifactName: 'github-pages-recovery'});
       - name: Verify recovered public generation and all download files
         if: steps.recovery.outputs.pending == 'true'
         run: python scripts/verify_state_publication.py --root-url https://takina6-source.github.io/japan-swing-lens --ledger "${{ runner.temp }}/pages-recovery/pages/state-generation.json"
@@ -212,10 +216,16 @@ jobs:
       - name: Publish
         id: deployment
         continue-on-error: true
-        uses: actions/deploy-pages@v4
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await require('./scripts/deploy_pages.cjs')({github, core, context});
       - name: Retry Pages deployment
         if: steps.deployment.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await require('./scripts/deploy_pages.cjs')({github, core, context});
       - name: Verify the deployed State generation and display files
         run: python scripts/verify_state_publication.py --root-url https://takina6-source.github.io/japan-swing-lens --ledger "${{ runner.temp }}/continuity-release/generation.json"
 
