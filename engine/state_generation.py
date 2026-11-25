@@ -128,9 +128,10 @@ def restore_generation(db, root_url: str, authority: dict, history_path: Path):
             if manifest != info or sha256(packed) != expected_ledger['compressed_sha256'][kind]:
                 raise StateError('mixed generation or compressed checksum mismatch')
             values[kind] = decode(packed, kind, compressed=True, expected=info)
-            old = _get(f'{root_url}/{kind}/state.json', optional=True)
-            if old is not None:
-                raise StateError('legacy State must not coexist in compressed publication')
+            # The independent ledger names and authenticates the compressed
+            # streams exclusively. Do not probe the retired legacy URL: Pages
+            # may return 503 rather than 404 for these nonexistent large files.
+            # Legacy/bootstrap loading keeps its separate mixed-state guard.
         history_raw = _get(root_url.rstrip('/') + '/storage/history.json')
         if sha256(history_raw) != expected_ledger['storage_history_sha256']:
             raise StateError('storage history checksum mismatch')

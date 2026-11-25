@@ -54,12 +54,65 @@ jobs:
       - name: Verify lossless browser downloads
         run: node tests/js/downloads.test.cjs
 
+  recover-pending-publication:
+    name: Recover verified pending publication
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e '.[jquants]'
+      - name: Verify the newest unpublished generation without rebuilding data
+        id: recovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -m scripts.pages_recovery --root-url https://takina6-source.github.io/japan-swing-lens --work "${{ runner.temp }}/pages-recovery" --github-output "$GITHUB_OUTPUT"
+      - uses: actions/configure-pages@v5
+        if: steps.recovery.outputs.pending == 'true'
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.recovery.outputs.pending == 'true'
+        with:
+          name: github-pages-recovery
+          path: ${{ runner.temp }}/pages-recovery/pages
+      - name: Wait for recovery artifact metadata
+        if: steps.recovery.outputs.pending == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -m scripts.pages_recovery --wait-run "${{ github.run_id }}" --artifact-name github-pages-recovery
+      - name: Publish recovered generation
+        if: steps.recovery.outputs.pending == 'true'
+        id: recover_deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-recovery
+      - name: Retry recovered generation deployment
+        if: steps.recover_deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-recovery
+      - name: Verify recovered public generation and all download files
+        if: steps.recovery.outputs.pending == 'true'
+        run: python scripts/verify_state_publication.py --root-url https://takina6-source.github.io/japan-swing-lens --ledger "${{ runner.temp }}/pages-recovery/pages/state-generation.json"
+
   analyze-and-publish:
     name: Analyze and publish
-    needs: test
+    needs: [test, recover-pending-publication]
     runs-on: ubuntu-latest
     permissions:
       contents: write # Immutable independent State backup Releases, scoped to this job.
+      actions: read
       pages: write
       id-token: write
     environment:
@@ -152,8 +205,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public/staged-dashboard
+      - name: Wait for Pages artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -m scripts.pages_recovery --wait-run "${{ github.run_id }}"
       - name: Publish
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Retry Pages deployment
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
       - name: Verify the deployed State generation and display files
         run: python scripts/verify_state_publication.py --root-url https://takina6-source.github.io/japan-swing-lens --ledger "${{ runner.temp }}/continuity-release/generation.json"

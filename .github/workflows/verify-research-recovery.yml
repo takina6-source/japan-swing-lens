@@ -6,6 +6,8 @@ on:
       - 'engine/state_io.py'
       - 'engine/state_generation.py'
       - 'engine/research/storage.py'
+      - 'scripts/pages_recovery.py'
+      - '.github/workflows/update-dashboard.yml'
       - '.github/workflows/verify-research-recovery.yml'
 
 permissions:
@@ -29,28 +31,7 @@ jobs:
           key: swing-data-${{ runner.os }}-${{ github.run_id }}
           restore-keys: swing-data-${{ runner.os }}-
           fail-on-cache-miss: true
-      - name: Select independent continuity authority
+      - name: Verify public or pending generation against the actual cached database
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/state_release.py --output "${{ runner.temp }}/authority.json"
-      - name: Verify recovery with the actual cached database and public State
-        env:
-          RECOVERY_TEMP: ${{ runner.temp }}
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          from engine.database import Database
-          from engine.state_generation import restore_generation
-          from engine.research.storage import ResearchStore
-          temp = Path(os.environ['RECOVERY_TEMP'])
-          authority = json.loads((temp / 'authority.json').read_bytes())
-          db = Database(Path('data/momentum.db'))
-          restore_generation(db, 'https://takina6-source.github.io/japan-swing-lens',
-                             authority, temp / 'history.json')
-          actual = len(ResearchStore(db).rows('research_control_history'))
-          expected = authority['generation']['streams']['research']['tables']['research_control_history']['count']
-          assert actual == expected, (actual, expected)
-          print('All three streams restored with checksums and cache continuity checks;',
-                authority['generation']['generation_id'], 'research history rows:', actual)
-          PY
+        run: python -m scripts.pages_recovery --root-url https://takina6-source.github.io/japan-swing-lens --work "${{ runner.temp }}/recovery-verification" --github-output "$GITHUB_OUTPUT" --cache-db data/momentum.db
